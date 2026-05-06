@@ -120,12 +120,23 @@ function DroppableColumn({ id, children }: { id: string; children: React.ReactNo
 function SortableSubtaskRow({
   subtask,
   onToggle,
+  onUpdateTitle,
 }: {
   subtask: Subtask;
   onToggle: () => void;
+  onUpdateTitle: (title: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: subtask.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(subtask.title);
+
+  const handleSave = () => {
+    if (editValue.trim() && editValue.trim() !== subtask.title) {
+      onUpdateTitle(editValue.trim());
+    }
+    setIsEditing(false);
+  };
 
   return (
     <div ref={setNodeRef} style={style} className="flex items-center gap-1.5 pl-9 py-0.5 group/sub">
@@ -144,9 +155,26 @@ function SortableSubtaskRow({
           </svg>
         )}
       </div>
-      <span className={`text-xs truncate ${subtask.completed ? "line-through text-default-400" : "text-default-600"}`}>
-        {subtask.title}
-      </span>
+      {isEditing ? (
+        <input
+          className="text-xs bg-transparent border-b border-primary outline-none flex-1 min-w-0"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSave();
+            if (e.key === "Escape") setIsEditing(false);
+          }}
+          autoFocus
+        />
+      ) : (
+        <span
+          className={`text-xs truncate cursor-text ${subtask.completed ? "line-through text-default-400" : "text-default-600"}`}
+          onClick={() => { setIsEditing(true); setEditValue(subtask.title); }}
+        >
+          {subtask.title}
+        </span>
+      )}
     </div>
   );
 }
@@ -160,6 +188,7 @@ function SortableTask({
   onReorderSubtasks,
   onUpdateTitle,
   onTogglePriority,
+  onUpdateSubtaskTitle,
 }: {
   task: Task;
   onToggle: () => void;
@@ -169,6 +198,7 @@ function SortableTask({
   onReorderSubtasks: (taskId: string, subtasks: Subtask[]) => void;
   onUpdateTitle: (taskId: string, title: string) => void;
   onTogglePriority: (taskId: string, currentPriority: TaskPriority) => void;
+  onUpdateSubtaskTitle: (taskId: string, subtaskId: string, title: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
@@ -302,6 +332,7 @@ function SortableTask({
                 key={st.id}
                 subtask={st}
                 onToggle={() => onToggleSubtask(task.id, st.id)}
+                onUpdateTitle={(title) => onUpdateSubtaskTitle(task.id, st.id, title)}
               />
             ))}
           </SortableContext>
@@ -496,6 +527,15 @@ export default function TasksPage() {
 
   const handleReorderSubtasks = (taskId: string, subtasks: Subtask[]) => {
     updateTask(taskId, { subtasks });
+  };
+
+  const handleUpdateSubtaskTitle = (taskId: string, subtaskId: string, title: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const updated = (task.subtasks || []).map((s) =>
+      s.id === subtaskId ? { ...s, title } : s
+    );
+    updateTask(taskId, { subtasks: updated });
   };
 
   const handleUpdateTitle = (taskId: string, title: string) => {
@@ -699,6 +739,7 @@ export default function TasksPage() {
                                 onReorderSubtasks={handleReorderSubtasks}
                                 onUpdateTitle={handleUpdateTitle}
                                 onTogglePriority={handleTogglePriority}
+                                onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
                               />
                             ))}
                           </SortableContext>

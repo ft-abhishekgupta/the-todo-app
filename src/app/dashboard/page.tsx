@@ -137,12 +137,23 @@ function LiveClock() {
 function SortableSubtask({
   subtask,
   onToggle,
+  onUpdateTitle,
 }: {
   subtask: Subtask;
   onToggle: () => void;
+  onUpdateTitle: (title: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: subtask.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(subtask.title);
+
+  const handleSave = () => {
+    if (editValue.trim() && editValue.trim() !== subtask.title) {
+      onUpdateTitle(editValue.trim());
+    }
+    setIsEditing(false);
+  };
 
   return (
     <div ref={setNodeRef} style={style} className="flex items-center gap-1.5 pl-8 py-0.5 group/sub">
@@ -161,9 +172,26 @@ function SortableSubtask({
           </svg>
         )}
       </div>
-      <span className={`text-xs truncate ${subtask.completed ? "line-through text-default-400" : "text-default-600"}`}>
-        {subtask.title}
-      </span>
+      {isEditing ? (
+        <input
+          className="text-xs bg-transparent border-b border-primary outline-none flex-1 min-w-0"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") handleSave();
+            if (e.key === "Escape") setIsEditing(false);
+          }}
+          autoFocus
+        />
+      ) : (
+        <span
+          className={`text-xs truncate cursor-text ${subtask.completed ? "line-through text-default-400" : "text-default-600"}`}
+          onClick={() => { setIsEditing(true); setEditValue(subtask.title); }}
+        >
+          {subtask.title}
+        </span>
+      )}
     </div>
   );
 }
@@ -178,6 +206,7 @@ function SortableTaskItem({
   onUpdateTitle,
   onTogglePriority,
   onOpenEditModal,
+  onUpdateSubtaskTitle,
   isFocused,
 }: {
   task: Task;
@@ -189,6 +218,7 @@ function SortableTaskItem({
   onUpdateTitle: (taskId: string, title: string) => void;
   onTogglePriority: (taskId: string, currentPriority: TaskPriority) => void;
   onOpenEditModal: (task: Task) => void;
+  onUpdateSubtaskTitle: (taskId: string, subtaskId: string, title: string) => void;
   isFocused: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
@@ -342,6 +372,7 @@ function SortableTaskItem({
                 key={st.id}
                 subtask={st}
                 onToggle={() => onToggleSubtask(task.id, st.id)}
+                onUpdateTitle={(title) => onUpdateSubtaskTitle(task.id, st.id, title)}
               />
             ))}
           </SortableContext>
@@ -385,6 +416,7 @@ function TaskSection({
   onUpdateTitle,
   onTogglePriority,
   onOpenEditModal,
+  onUpdateSubtaskTitle,
   onDragEnd,
   onQuickAdd,
   sensors,
@@ -400,6 +432,7 @@ function TaskSection({
   onUpdateTitle: (taskId: string, title: string) => void;
   onTogglePriority: (taskId: string, currentPriority: TaskPriority) => void;
   onOpenEditModal: (task: Task) => void;
+  onUpdateSubtaskTitle: (taskId: string, subtaskId: string, title: string) => void;
   onDragEnd: (event: DragEndEvent, category: TaskType) => void;
   onQuickAdd: (title: string, category: TaskType, subtype?: TaskSubtype) => void;
   sensors: ReturnType<typeof useSensors>;
@@ -502,6 +535,7 @@ function TaskSection({
                   onUpdateTitle={onUpdateTitle}
                   onTogglePriority={onTogglePriority}
                   onOpenEditModal={onOpenEditModal}
+                  onUpdateSubtaskTitle={onUpdateSubtaskTitle}
                   isFocused={task.id === focusTask?.id}
                 />
               ))}
@@ -819,8 +853,16 @@ export default function DashboardPage() {
   };
 
   const handleOpenEditModal = (task: Task) => {
-    // Navigate to tasks page for full editing
     router.push("/tasks");
+  };
+
+  const handleUpdateSubtaskTitle = (taskId: string, subtaskId: string, title: string) => {
+    const task = todayTasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const updated = (task.subtasks || []).map((s) =>
+      s.id === subtaskId ? { ...s, title } : s
+    );
+    updateTask(taskId, { subtasks: updated });
   };
 
   return (
@@ -878,6 +920,7 @@ export default function DashboardPage() {
                 onUpdateTitle={handleUpdateTitle}
                 onTogglePriority={handleTogglePriority}
                 onOpenEditModal={handleOpenEditModal}
+                onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
                 onDragEnd={handleDragEnd}
                 onQuickAdd={handleQuickAdd}
                 sensors={sensors}
