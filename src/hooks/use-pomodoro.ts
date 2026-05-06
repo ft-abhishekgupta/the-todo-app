@@ -78,17 +78,18 @@ export function usePomodoroTimer(workDuration: number = 25) {
     };
   }, [isRunning, timeLeft]);
 
-  const startSession = async (taskId?: string) => {
+  const startSession = async (taskIds?: string[], habitIds?: string[]) => {
     if (!user) return;
 
-    const session = {
+    const session: any = {
       userId: user.uid,
-      taskId: taskId || null,
       duration: workDuration,
       notes: "",
       startedAt: Timestamp.now(),
       isCompleted: false,
     };
+    if (taskIds && taskIds.length > 0) session.taskIds = taskIds;
+    if (habitIds && habitIds.length > 0) session.habitIds = habitIds;
 
     const docRef = await addDoc(collection(db, "pomodoroSessions"), session);
     setCurrentSessionId(docRef.id);

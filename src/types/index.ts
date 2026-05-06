@@ -96,6 +96,8 @@ export interface PomodoroSession {
   id: string;
   userId: string;
   taskId?: string;
+  taskIds?: string[];
+  habitIds?: string[];
   duration: number; // in minutes
   notes?: string;
   startedAt: Timestamp;

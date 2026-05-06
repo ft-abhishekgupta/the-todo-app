@@ -35,22 +35,45 @@ export function useHabits(category?: HabitCategory) {
       collection(db, "habits"),
       where("userId", "==", user.uid),
       where("isActive", "==", true),
-      orderBy("createdAt", "asc")
+      orderBy("order", "asc")
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      let habitList = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      })) as Habit[];
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        let habitList = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        })) as Habit[];
 
-      if (category) {
-        habitList = habitList.filter((h) => h.category === category);
+        if (category) {
+          habitList = habitList.filter((h) => h.category === category);
+        }
+
+        setHabits(habitList);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("Habits listener error:", error);
+        // Fallback: query without order
+        const fallbackQ = query(
+          collection(db, "habits"),
+          where("userId", "==", user.uid),
+          where("isActive", "==", true)
+        );
+        onSnapshot(fallbackQ, (snapshot) => {
+          let habitList = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+          })) as Habit[];
+          if (category) {
+            habitList = habitList.filter((h) => h.category === category);
+          }
+          setHabits(habitList);
+          setLoading(false);
+        });
       }
-
-      setHabits(habitList);
-      setLoading(false);
-    });
+    );
 
     return () => unsubscribe();
   }, [user, category]);
