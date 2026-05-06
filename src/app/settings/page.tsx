@@ -256,7 +256,7 @@ export default function SettingsPage() {
                   <div>
                     <p className="font-medium text-sm">Export Data</p>
                     <p className="text-default-500 text-xs">
-                      Download all your data as a JSON file
+                      Download all your data (tasks, habits, projects, lists, pomodoros, schedule) as JSON
                     </p>
                   </div>
                 </div>
@@ -317,7 +317,7 @@ export default function SettingsPage() {
                   <div>
                     <p className="font-medium text-sm text-danger">Reset All Data</p>
                     <p className="text-default-500 text-xs">
-                      Permanently delete all tasks, habits, sessions & projects
+                      Permanently delete tasks, habits, projects, lists, sessions & schedule
                     </p>
                   </div>
                 </div>
@@ -354,6 +354,8 @@ export default function SettingsPage() {
                     <li>All habits and habit logs</li>
                     <li>All pomodoro sessions</li>
                     <li>All projects</li>
+                    <li>All lists and list items</li>
+                    <li>All schedule events</li>
                   </ul>
                   <p className="text-sm mt-3">
                     Type <strong>DELETE</strong> to confirm:
