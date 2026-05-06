@@ -16,6 +16,7 @@ import {
   DropdownTrigger,
   DropdownMenu,
   DropdownItem,
+  Tooltip,
 } from "@nextui-org/react";
 import NextLink from "next/link";
 import clsx from "clsx";
@@ -23,15 +24,37 @@ import { useAuth } from "@/providers/auth-provider";
 import { siteConfig } from "@/config/site";
 import { ThemeSwitch } from "./theme-switch";
 import { QuickAddToList } from "@/components/dashboard/quick-add-to-list";
-import { LogOut, User, Settings } from "lucide-react";
+import { useUIStore } from "@/stores/ui-store";
+import { LogOut, User, Settings, Maximize2, Minimize2 } from "lucide-react";
 
 export function Navbar() {
   const { user, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const fullscreen = useUIStore((s) => s.fullscreen);
+  const toggleFullscreen = useUIStore((s) => s.toggleFullscreen);
 
   if (!user) return null;
+
+  // Fullscreen mode: just show a small floating exit button in the top-right.
+  if (fullscreen) {
+    return (
+      <div className="fixed top-2 right-2 z-50">
+        <Tooltip content="Exit fullscreen" placement="bottom-end">
+          <Button
+            isIconOnly
+            size="sm"
+            variant="flat"
+            onPress={toggleFullscreen}
+            aria-label="Exit fullscreen"
+          >
+            <Minimize2 size={16} />
+          </Button>
+        </Tooltip>
+      </div>
+    );
+  }
 
   return (
     <NextUINavbar
@@ -73,6 +96,17 @@ export function Navbar() {
       <NavbarContent className="hidden sm:flex basis-1/5 sm:basis-full" justify="end">
         <NavbarItem className="hidden sm:flex gap-1 items-center">
           <QuickAddToList iconOnly />
+          <Tooltip content="Hide header (fullscreen)" placement="bottom">
+            <Button
+              isIconOnly
+              size="sm"
+              variant="light"
+              onPress={toggleFullscreen}
+              aria-label="Toggle fullscreen"
+            >
+              <Maximize2 size={16} />
+            </Button>
+          </Tooltip>
           <ThemeSwitch />
         </NavbarItem>
         <NavbarItem>
@@ -114,6 +148,9 @@ export function Navbar() {
 
       <NavbarContent className="sm:hidden basis-1 pl-4" justify="end">
         <QuickAddToList iconOnly />
+        <Button isIconOnly size="sm" variant="light" onPress={toggleFullscreen} aria-label="Toggle fullscreen">
+          <Maximize2 size={16} />
+        </Button>
         <ThemeSwitch />
         <Avatar
           size="sm"

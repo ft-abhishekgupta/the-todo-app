@@ -837,10 +837,10 @@ export default function DashboardPage() {
                       {nowPct !== null && (
                         <Tooltip content={<span className="text-[10px]">Now {formatTimeStr(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`, timeFmt)}</span>} placement="top">
                           <div
-                            className="absolute -top-1 -bottom-1 w-0.5 bg-danger z-10"
+                            className="absolute top-0 bottom-0 w-0.5 bg-danger z-10"
                             style={{ left: `${nowPct}%` }}
                           >
-                            <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
+                            <div className="absolute top-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
                           </div>
                         </Tooltip>
                       )}
@@ -848,13 +848,17 @@ export default function DashboardPage() {
 
                     {/* Hour labels */}
                     <div className="relative h-3.5 mt-0.5">
-                      {tickHours.map((h) => {
+                      {tickHours.map((h, idx) => {
                         const pct = ((h * 60 - START_MIN) / SPAN) * 100;
                         const label = formatTimeStr(`${String(h % 24).padStart(2, "0")}:00`, timeFmt).replace(":00 ", " ").replace(":00", "");
+                        const isFirst = idx === 0;
+                        const isLast = idx === tickHours.length - 1;
                         return (
                           <span
                             key={`tick-${h}`}
-                            className="absolute text-[9px] text-default-400 -translate-x-1/2 tabular-nums"
+                            className={`absolute text-[9px] text-default-400 tabular-nums whitespace-nowrap ${
+                              isFirst ? "" : isLast ? "-translate-x-full" : "-translate-x-1/2"
+                            }`}
                             style={{ left: `${pct}%` }}
                           >
                             {label}
