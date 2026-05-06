@@ -35,11 +35,12 @@ export function Navbar() {
 
   return (
     <NextUINavbar
-      maxWidth="xl"
+      maxWidth="full"
       position="sticky"
       isMenuOpen={isMenuOpen}
       onMenuOpenChange={setIsMenuOpen}
       className="border-b border-divider"
+      classNames={{ wrapper: "px-4 lg:px-[7%]" }}
     >
       <NavbarContent className="basis-1/5 sm:basis-full" justify="start">
         <NavbarBrand className="gap-3 max-w-fit">

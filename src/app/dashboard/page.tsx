@@ -691,7 +691,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className={`container mx-auto max-w-full px-3 sm:px-4 py-4 sm:py-6 transition-all ${completedOpen ? "mr-80" : ""}`}>
+      <main className={`container mx-auto max-w-full px-3 sm:px-4 lg:px-[7%] py-4 sm:py-6 transition-all ${completedOpen ? "mr-80" : ""}`}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           {/* Header */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">

@@ -248,7 +248,7 @@ export default function PomodoroPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container mx-auto max-w-full px-4 py-6">
+      <main className="container mx-auto max-w-full px-4 lg:px-[7%] py-6">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           {/* Header */}
           <div className="text-center">

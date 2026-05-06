@@ -288,7 +288,7 @@ export default function ProjectsPage() {
     return (
       <div className="min-h-screen bg-background">
         <Navbar />
-        <main className="container mx-auto max-w-full px-3 sm:px-4 py-4 sm:py-6">
+        <main className="container mx-auto max-w-full px-3 sm:px-4 lg:px-[7%] py-4 sm:py-6">
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
             {/* Back + Header */}
             <div className="flex items-center gap-3">
@@ -539,7 +539,7 @@ export default function ProjectsPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container mx-auto max-w-full px-3 sm:px-4 py-4 sm:py-6">
+      <main className="container mx-auto max-w-full px-3 sm:px-4 lg:px-[7%] py-4 sm:py-6">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           {/* Header with title, filters, and new project in one row */}
           <div className="flex flex-wrap items-center gap-2">
