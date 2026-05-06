@@ -981,76 +981,46 @@ export default function DashboardPage() {
 
           {/* Stats */}
           <div className="grid grid-cols-3 gap-2">
-            {/* Tasks badge with 3 progress bars */}
+            {/* Tasks */}
             <Card shadow="sm">
-              <CardBody className="p-2.5">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Target size={14} className="text-primary shrink-0" />
-                  <span className="text-[10px] text-default-500">Tasks</span>
-                  <span className="text-sm font-bold ml-auto">{completedTasks.length}/{todayTasks.length}</span>
-                </div>
-                <div className="space-y-1">
-                  {([
-                    { key: "work" as TaskType, label: "W", color: "primary" },
-                    { key: "personal" as TaskType, label: "P", color: "success" },
-                    { key: "growth" as TaskType, label: "G", color: "warning" },
-                  ] as const).map((cat) => {
-                    const total = todayTasks.filter((t) => t.category === cat.key).length;
-                    const done = completedTasks.filter((t) => t.category === cat.key).length;
-                    return (
-                      <div key={cat.key} className="flex items-center gap-1.5">
-                        <span className="text-[9px] w-3 text-default-400">{cat.label}</span>
-                        <Progress size="sm" value={total > 0 ? (done / total) * 100 : 0} color={cat.color as any} className="flex-1" />
-                        <span className="text-[9px] text-default-400 w-6 text-right">{done}/{total}</span>
-                      </div>
-                    );
+              <CardBody className="p-2 flex flex-row items-center gap-2">
+                <Target size={12} className="text-primary shrink-0" />
+                <span className="text-xs font-semibold">{completedTasks.length}/{todayTasks.length}</span>
+                <div className="flex gap-0.5 flex-1">
+                  {(["work", "personal", "growth"] as TaskType[]).map((key) => {
+                    const total = todayTasks.filter((t) => t.category === key).length;
+                    const done = completedTasks.filter((t) => t.category === key).length;
+                    const colors = { work: "primary", personal: "success", growth: "warning" } as const;
+                    return <Progress key={key} size="sm" value={total > 0 ? (done / total) * 100 : 0} color={colors[key as keyof typeof colors]} className="flex-1" />;
                   })}
                 </div>
               </CardBody>
             </Card>
 
-            {/* Habits badge with category progress */}
+            {/* Habits */}
             <Card shadow="sm">
-              <CardBody className="p-2.5">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Flame size={14} className="text-success shrink-0" />
-                  <span className="text-[10px] text-default-500">Habits</span>
-                  <span className="text-sm font-bold ml-auto">{completedHabits}/{habits.length}</span>
-                </div>
-                <div className="space-y-1">
-                  {([
-                    { key: "morning" as const, label: "AM", color: "warning" },
-                    { key: "all_day" as const, label: "Day", color: "primary" },
-                    { key: "night" as const, label: "PM", color: "secondary" },
-                  ]).map((cat) => {
-                    const catHabits = habits.filter((h) => h.category === cat.key);
-                    const catDone = catHabits.filter((h) => logs.some((l) => l.habitId === h.id && l.date === todayDate && l.completed)).length;
-                    return (
-                      <div key={cat.key} className="flex items-center gap-1.5">
-                        <span className="text-[9px] w-5 text-default-400">{cat.label}</span>
-                        <Progress size="sm" value={catHabits.length > 0 ? (catDone / catHabits.length) * 100 : 0} color={cat.color as any} className="flex-1" />
-                        <span className="text-[9px] text-default-400 w-6 text-right">{catDone}/{catHabits.length}</span>
-                      </div>
-                    );
+              <CardBody className="p-2 flex flex-row items-center gap-2">
+                <Flame size={12} className="text-success shrink-0" />
+                <span className="text-xs font-semibold">{completedHabits}/{habits.length}</span>
+                <div className="flex gap-0.5 flex-1">
+                  {(["morning", "all_day", "night"] as const).map((key) => {
+                    const catH = habits.filter((h) => h.category === key);
+                    const catD = catH.filter((h) => logs.some((l) => l.habitId === h.id && l.date === todayDate && l.completed)).length;
+                    const colors = { morning: "warning", all_day: "primary", night: "secondary" } as const;
+                    return <Progress key={key} size="sm" value={catH.length > 0 ? (catD / catH.length) * 100 : 0} color={colors[key]} className="flex-1" />;
                   })}
                 </div>
               </CardBody>
             </Card>
 
-            {/* Pomodoro badge with start button */}
+            {/* Pomodoro */}
             <Card shadow="sm">
-              <CardBody className="p-2.5">
-                <div className="flex items-center gap-2 mb-1.5">
-                  <Timer size={14} className="text-warning shrink-0" />
-                  <span className="text-[10px] text-default-500">Pomodoro</span>
-                  <span className="text-sm font-bold ml-auto">{completedPomodoros}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-default-500">{completedPomodoros * 25}m focused</span>
-                  <Button color="warning" variant="flat" size="sm" className="h-6 min-w-0 px-2 text-[10px]" onPress={() => router.push("/pomodoro")}>
-                    Start
-                  </Button>
-                </div>
+              <CardBody className="p-2 flex flex-row items-center gap-2">
+                <Timer size={12} className="text-warning shrink-0" />
+                <span className="text-xs font-semibold">{completedPomodoros} · {completedPomodoros * 25}m</span>
+                <Button color="warning" variant="flat" size="sm" className="h-5 min-w-0 px-2 text-[10px] ml-auto" onPress={() => router.push("/pomodoro")}>
+                  Start
+                </Button>
               </CardBody>
             </Card>
           </div>
