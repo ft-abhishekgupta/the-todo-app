@@ -1,8 +1,8 @@
 import { Timestamp } from "firebase/firestore";
 
 // Task Types
-export type TaskStatus = "not_started" | "started" | "completed" | "blocked";
-export type TaskPriority = "low" | "medium" | "high" | "urgent";
+export type TaskStatus = "not_started" | "completed" | "blocked";
+export type TaskPriority = "low" | "medium" | "high";
 
 export type TaskType = "work" | "personal" | "growth" | "habit";
 

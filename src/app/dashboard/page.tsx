@@ -113,11 +113,10 @@ const TASK_TYPES: {
   },
 ];
 
-const priorityColors: Record<TaskPriority, "default" | "primary" | "warning" | "danger"> = {
+const priorityColors: Record<TaskPriority, "default" | "primary" | "warning"> = {
   low: "default",
   medium: "primary",
   high: "warning",
-  urgent: "danger",
 };
 
 function LiveClock() {
@@ -176,6 +175,9 @@ function SortableTaskItem({
   onAddSubtask,
   onToggleSubtask,
   onReorderSubtasks,
+  onUpdateTitle,
+  onTogglePriority,
+  onOpenEditModal,
   isFocused,
 }: {
   task: Task;
@@ -184,12 +186,17 @@ function SortableTaskItem({
   onAddSubtask: (taskId: string, title: string) => void;
   onToggleSubtask: (taskId: string, subtaskId: string) => void;
   onReorderSubtasks: (taskId: string, subtasks: Subtask[]) => void;
+  onUpdateTitle: (taskId: string, title: string) => void;
+  onTogglePriority: (taskId: string, currentPriority: TaskPriority) => void;
+  onOpenEditModal: (task: Task) => void;
   isFocused: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState(task.title);
   const subtasks = task.subtasks || [];
   const completedSubtasks = subtasks.filter((s) => s.completed).length;
 
@@ -213,36 +220,80 @@ function SortableTaskItem({
     setAddingSubtask(false);
   };
 
+  const handleTitleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditingTitle(true);
+    setEditTitle(task.title);
+  };
+
+  const handleTitleSave = () => {
+    if (editTitle.trim() && editTitle.trim() !== task.title) {
+      onUpdateTitle(task.id, editTitle.trim());
+    }
+    setIsEditingTitle(false);
+  };
+
+  const priorityDotColors: Record<TaskPriority, string> = {
+    low: "bg-default-400",
+    medium: "bg-primary",
+    high: "bg-warning",
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`rounded-lg hover:bg-content2/50 transition-colors mb-1 ${isFocused ? "bg-primary/5 border border-primary/20" : ""}`}
+      {...attributes}
+      {...listeners}
+      className={`rounded-lg hover:bg-content2/50 transition-colors mb-1 cursor-grab active:cursor-grabbing touch-none ${isFocused ? "bg-primary/5 border border-primary/20" : ""}`}
+      onDoubleClick={() => onOpenEditModal(task)}
     >
       {/* Main task row */}
       <div className="flex items-center gap-2 p-2 group">
-        <button {...attributes} {...listeners} className="cursor-grab opacity-0 group-hover:opacity-100 touch-none shrink-0">
-          <GripVertical size={14} className="text-default-400" />
-        </button>
+        {/* Checkbox with blocked state */}
         <div
           className={`w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer shrink-0 ${
-            task.status === "completed" ? "bg-success border-success" : "border-default-300 hover:border-primary"
+            task.status === "completed"
+              ? "bg-success border-success"
+              : task.status === "blocked"
+              ? "bg-warning/30 border-warning"
+              : "border-default-300 hover:border-primary"
           }`}
-          onClick={() => onToggle(task.id, task.status !== "completed")}
+          onClick={(e) => { e.stopPropagation(); onToggle(task.id, task.status !== "completed"); }}
         >
           {task.status === "completed" && (
             <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
             </svg>
           )}
+          {task.status === "blocked" && (
+            <div className="w-2 h-0.5 bg-warning rounded" />
+          )}
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <span className={`text-sm truncate ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
-              {task.title}
-            </span>
-            {isFocused && <Star size={10} className="text-primary shrink-0 fill-primary" />}
-          </div>
+        <div className="flex-1 min-w-0" onClick={handleTitleClick}>
+          {isEditingTitle ? (
+            <Input
+              size="sm"
+              variant="bordered"
+              value={editTitle}
+              onValueChange={setEditTitle}
+              onBlur={handleTitleSave}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleTitleSave();
+                if (e.key === "Escape") setIsEditingTitle(false);
+              }}
+              classNames={{ inputWrapper: "border-1 h-6 min-h-6", input: "text-xs" }}
+              autoFocus
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <span className={`text-sm truncate cursor-text ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
+                {task.title}
+              </span>
+              {isFocused && <Star size={10} className="text-primary shrink-0 fill-primary" />}
+            </div>
+          )}
           {subtasks.length > 0 && (
             <div className="flex items-center gap-1.5 mt-0.5">
               <Progress size="sm" value={(completedSubtasks / subtasks.length) * 100} color="primary" className="w-16" />
@@ -273,9 +324,12 @@ function SortableTaskItem({
               <Star size={10} />
             </Button>
           )}
-          <Chip size="sm" variant="dot" color={priorityColors[task.priority]} className="hidden sm:flex h-5">
-            {task.priority[0].toUpperCase()}
-          </Chip>
+          {/* Priority dot */}
+          <div
+            className={`w-2.5 h-2.5 rounded-full cursor-pointer ${priorityDotColors[task.priority]}`}
+            onClick={(e) => { e.stopPropagation(); onTogglePriority(task.id, task.priority); }}
+            title={`Priority: ${task.priority} (click to change)`}
+          />
         </div>
       </div>
 
@@ -328,6 +382,9 @@ function TaskSection({
   onAddSubtask,
   onToggleSubtask,
   onReorderSubtasks,
+  onUpdateTitle,
+  onTogglePriority,
+  onOpenEditModal,
   onDragEnd,
   onQuickAdd,
   sensors,
@@ -340,17 +397,20 @@ function TaskSection({
   onAddSubtask: (taskId: string, title: string) => void;
   onToggleSubtask: (taskId: string, subtaskId: string) => void;
   onReorderSubtasks: (taskId: string, subtasks: Subtask[]) => void;
+  onUpdateTitle: (taskId: string, title: string) => void;
+  onTogglePriority: (taskId: string, currentPriority: TaskPriority) => void;
+  onOpenEditModal: (task: Task) => void;
   onDragEnd: (event: DragEndEvent, category: TaskType) => void;
   onQuickAdd: (title: string, category: TaskType, subtype?: TaskSubtype) => void;
   sensors: ReturnType<typeof useSensors>;
-}) {
+}){
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newSubtype, setNewSubtype] = useState<TaskSubtype | "">(type.subtypes[0]?.key || "");
   const Icon = type.icon;
 
   const activeTasks = tasks.filter((t) => t.status !== "completed");
-  const focusTask = activeTasks.find((t) => t.id === focusTaskId) || activeTasks.find((t) => t.priority === "urgent" || t.priority === "high") || activeTasks[0];
+  const focusTask = activeTasks.find((t) => t.id === focusTaskId) || activeTasks.find((t) => t.priority === "high") || activeTasks[0];
 
   const handleAdd = () => {
     if (!newTitle.trim()) return;
@@ -439,6 +499,9 @@ function TaskSection({
                   onAddSubtask={onAddSubtask}
                   onToggleSubtask={onToggleSubtask}
                   onReorderSubtasks={onReorderSubtasks}
+                  onUpdateTitle={onUpdateTitle}
+                  onTogglePriority={onTogglePriority}
+                  onOpenEditModal={onOpenEditModal}
                   isFocused={task.id === focusTask?.id}
                 />
               ))}
@@ -744,6 +807,22 @@ export default function DashboardPage() {
     });
   };
 
+  const handleUpdateTitle = (taskId: string, title: string) => {
+    updateTask(taskId, { title });
+  };
+
+  const handleTogglePriority = (taskId: string, currentPriority: TaskPriority) => {
+    const cycle: TaskPriority[] = ["low", "medium", "high"];
+    const idx = cycle.indexOf(currentPriority);
+    const next = cycle[(idx + 1) % cycle.length];
+    updateTask(taskId, { priority: next });
+  };
+
+  const handleOpenEditModal = (task: Task) => {
+    // Navigate to tasks page for full editing
+    router.push("/tasks");
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
@@ -796,6 +875,9 @@ export default function DashboardPage() {
                 onAddSubtask={handleAddSubtask}
                 onToggleSubtask={handleToggleSubtask}
                 onReorderSubtasks={handleReorderSubtasks}
+                onUpdateTitle={handleUpdateTitle}
+                onTogglePriority={handleTogglePriority}
+                onOpenEditModal={handleOpenEditModal}
                 onDragEnd={handleDragEnd}
                 onQuickAdd={handleQuickAdd}
                 sensors={sensors}

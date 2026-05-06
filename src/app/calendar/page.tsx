@@ -222,7 +222,6 @@ export default function CalendarPage() {
                           {task.status.replace("_", " ")}
                         </Chip>
                         <Chip size="sm" variant="flat" color={
-                          task.priority === "urgent" ? "danger" :
                           task.priority === "high" ? "warning" :
                           task.priority === "medium" ? "primary" : "default"
                         }>

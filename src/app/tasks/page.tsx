@@ -37,7 +37,6 @@ import {
   GripVertical,
   ChevronDown,
   ChevronRight as ChevronRightIcon,
-  Filter,
   X,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
@@ -68,7 +67,6 @@ import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 
 const statusOptions: { key: TaskStatus; label: string }[] = [
   { key: "not_started", label: "Not Started" },
-  { key: "started", label: "Started" },
   { key: "completed", label: "Completed" },
   { key: "blocked", label: "Blocked" },
 ];
@@ -77,7 +75,6 @@ const priorityOptions: { key: TaskPriority; label: string; color: "default" | "p
   { key: "low", label: "Low", color: "default" },
   { key: "medium", label: "Medium", color: "primary" },
   { key: "high", label: "High", color: "warning" },
-  { key: "urgent", label: "Urgent", color: "danger" },
 ];
 
 const categoryOptions: { key: TaskCategory; label: string }[] = [
@@ -170,6 +167,8 @@ function SortableTask({
   onAddSubtask,
   onToggleSubtask,
   onReorderSubtasks,
+  onUpdateTitle,
+  onTogglePriority,
 }: {
   task: Task;
   onToggle: () => void;
@@ -179,11 +178,15 @@ function SortableTask({
   onAddSubtask: (taskId: string, title: string) => void;
   onToggleSubtask: (taskId: string, subtaskId: string) => void;
   onReorderSubtasks: (taskId: string, subtasks: Subtask[]) => void;
+  onUpdateTitle: (taskId: string, title: string) => void;
+  onTogglePriority: (taskId: string, currentPriority: TaskPriority) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
   const [addingSubtask, setAddingSubtask] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState(task.title);
   const subtasks = task.subtasks || [];
   const completedSubs = subtasks.filter((s) => s.completed).length;
 
@@ -207,31 +210,83 @@ function SortableTask({
     setAddingSubtask(false);
   };
 
+  const handleTitleClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsEditingTitle(true);
+    setEditTitle(task.title);
+  };
+
+  const handleTitleSave = () => {
+    if (editTitle.trim() && editTitle.trim() !== task.title) {
+      onUpdateTitle(task.id, editTitle.trim());
+    }
+    setIsEditingTitle(false);
+  };
+
+  const priorityDotColors: Record<TaskPriority, string> = {
+    low: "bg-default-400",
+    medium: "bg-primary",
+    high: "bg-warning",
+  };
+
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="bg-content1 border border-divider hover:border-primary/30 rounded-lg transition-all mb-2"
+      {...attributes}
+      {...listeners}
+      className="bg-content1 border border-divider hover:border-primary/30 rounded-lg transition-all mb-2 cursor-grab active:cursor-grabbing touch-none"
+      onDoubleClick={onEdit}
     >
       <div className="flex items-start gap-2 p-2 group">
-        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing mt-1 touch-none shrink-0">
-          <GripVertical size={14} className="text-default-400" />
-        </button>
-        <Checkbox
-          isSelected={task.status === "completed"}
-          onValueChange={onToggle}
-          color="success"
-          size="sm"
-          className="mt-0.5"
-        />
-        <div className="flex-1 min-w-0" onClick={onEdit}>
-          <p className={`text-xs sm:text-sm font-medium truncate cursor-pointer ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
-            {task.title}
-          </p>
+        {/* Checkbox - blocked shows indeterminate */}
+        <div
+          className={`w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer shrink-0 mt-0.5 ${
+            task.status === "completed"
+              ? "bg-success border-success"
+              : task.status === "blocked"
+              ? "bg-warning/30 border-warning"
+              : "border-default-300 hover:border-primary"
+          }`}
+          onClick={(e) => { e.stopPropagation(); onToggle(); }}
+        >
+          {task.status === "completed" && (
+            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+          {task.status === "blocked" && (
+            <div className="w-2 h-0.5 bg-warning rounded" />
+          )}
+        </div>
+        <div className="flex-1 min-w-0" onClick={handleTitleClick}>
+          {isEditingTitle ? (
+            <Input
+              size="sm"
+              variant="bordered"
+              value={editTitle}
+              onValueChange={setEditTitle}
+              onBlur={handleTitleSave}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleTitleSave();
+                if (e.key === "Escape") setIsEditingTitle(false);
+              }}
+              classNames={{ inputWrapper: "border-1 h-6 min-h-6", input: "text-xs" }}
+              autoFocus
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <p className={`text-xs sm:text-sm font-medium truncate cursor-text ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
+              {task.title}
+            </p>
+          )}
           <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            <Chip size="sm" variant="flat" color={priorityOptions.find((p) => p.key === task.priority)?.color} className="h-4 text-[10px]">
-              {task.priority}
-            </Chip>
+            {/* Priority dot - clickable to toggle */}
+            <div
+              className={`w-2.5 h-2.5 rounded-full cursor-pointer ${priorityDotColors[task.priority]}`}
+              onClick={(e) => { e.stopPropagation(); onTogglePriority(task.id, task.priority); }}
+              title={`Priority: ${task.priority} (click to change)`}
+            />
             <Chip size="sm" variant="flat" className="h-4 text-[10px]">{task.category}</Chip>
             {subtasks.length > 0 && (
               <span className="text-[10px] text-default-400">{completedSubs}/{subtasks.length}</span>
@@ -323,7 +378,6 @@ export default function TasksPage() {
   const [filterCategory, setFilterCategory] = useState<TaskCategory | "all">("all");
   const [filterPriority, setFilterPriority] = useState<TaskPriority | "all">("all");
   const [filterStatus, setFilterStatus] = useState<TaskStatus | "all">("all");
-  const [showFilters, setShowFilters] = useState(false);
 
   const [formTitle, setFormTitle] = useState("");
   const [formDescription, setFormDescription] = useState("");
@@ -475,6 +529,17 @@ export default function TasksPage() {
     updateTask(taskId, { subtasks });
   };
 
+  const handleUpdateTitle = (taskId: string, title: string) => {
+    updateTask(taskId, { title });
+  };
+
+  const handleTogglePriority = (taskId: string, currentPriority: TaskPriority) => {
+    const cycle: TaskPriority[] = ["low", "medium", "high"];
+    const idx = cycle.indexOf(currentPriority);
+    const next = cycle[(idx + 1) % cycle.length];
+    updateTask(taskId, { priority: next });
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over) return;
@@ -544,74 +609,63 @@ export default function TasksPage() {
                 size="sm"
                 className="flex-1 sm:w-48"
               />
-              <Button
-                size="sm"
-                variant={showFilters ? "flat" : "bordered"}
-                color={showFilters || filterCategory !== "all" || filterPriority !== "all" || filterStatus !== "all" ? "primary" : "default"}
-                startContent={<Filter size={14} />}
-                onPress={() => setShowFilters(!showFilters)}
-              >
-                Filter
-              </Button>
               <Button color="primary" size="sm" startContent={<Plus size={16} />} onPress={() => openCreateModal("today")}>
                 Add
               </Button>
             </div>
           </div>
 
-          {/* Filters */}
-          {showFilters && (
-            <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-content2/50 border border-divider">
-              <Select
+          {/* Filters - always visible */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Select
+              size="sm"
+              variant="bordered"
+              className="w-28"
+              label="Category"
+              selectedKeys={[filterCategory]}
+              onSelectionChange={(k) => setFilterCategory(Array.from(k)[0] as TaskCategory | "all")}
+            >
+              {[{ key: "all", label: "All" }, ...categoryOptions].map((c) => (
+                <SelectItem key={c.key}>{c.label}</SelectItem>
+              ))}
+            </Select>
+            <Select
+              size="sm"
+              variant="bordered"
+              className="w-28"
+              label="Priority"
+              selectedKeys={[filterPriority]}
+              onSelectionChange={(k) => setFilterPriority(Array.from(k)[0] as TaskPriority | "all")}
+            >
+              {[{ key: "all", label: "All" }, ...priorityOptions].map((c) => (
+                <SelectItem key={c.key}>{c.label}</SelectItem>
+              ))}
+            </Select>
+            <Select
+              size="sm"
+              variant="bordered"
+              className="w-28"
+              label="Status"
+              selectedKeys={[filterStatus]}
+              onSelectionChange={(k) => setFilterStatus(Array.from(k)[0] as TaskStatus | "all")}
+            >
+              {[{ key: "all", label: "All" }, ...statusOptions].map((c) => (
+                <SelectItem key={c.key}>{c.label}</SelectItem>
+              ))}
+            </Select>
+            {(filterCategory !== "all" || filterPriority !== "all" || filterStatus !== "all") && (
+              <Button
                 size="sm"
-                variant="bordered"
-                className="w-28"
-                label="Category"
-                selectedKeys={[filterCategory]}
-                onSelectionChange={(k) => setFilterCategory(Array.from(k)[0] as TaskCategory | "all")}
+                variant="light"
+                color="danger"
+                startContent={<X size={12} />}
+                onPress={() => { setFilterCategory("all"); setFilterPriority("all"); setFilterStatus("all"); }}
               >
-                {[{ key: "all", label: "All" }, ...categoryOptions].map((c) => (
-                  <SelectItem key={c.key}>{c.label}</SelectItem>
-                ))}
-              </Select>
-              <Select
-                size="sm"
-                variant="bordered"
-                className="w-28"
-                label="Priority"
-                selectedKeys={[filterPriority]}
-                onSelectionChange={(k) => setFilterPriority(Array.from(k)[0] as TaskPriority | "all")}
-              >
-                {[{ key: "all", label: "All" }, ...priorityOptions].map((c) => (
-                  <SelectItem key={c.key}>{c.label}</SelectItem>
-                ))}
-              </Select>
-              <Select
-                size="sm"
-                variant="bordered"
-                className="w-28"
-                label="Status"
-                selectedKeys={[filterStatus]}
-                onSelectionChange={(k) => setFilterStatus(Array.from(k)[0] as TaskStatus | "all")}
-              >
-                {[{ key: "all", label: "All" }, ...statusOptions].map((c) => (
-                  <SelectItem key={c.key}>{c.label}</SelectItem>
-                ))}
-              </Select>
-              {(filterCategory !== "all" || filterPriority !== "all" || filterStatus !== "all") && (
-                <Button
-                  size="sm"
-                  variant="light"
-                  color="danger"
-                  startContent={<X size={12} />}
-                  onPress={() => { setFilterCategory("all"); setFilterPriority("all"); setFilterStatus("all"); }}
-                >
-                  Clear
-                </Button>
-              )}
-              <span className="text-xs text-default-400 ml-auto">{filteredTasks.length} tasks</span>
-            </div>
-          )}
+                Clear
+              </Button>
+            )}
+            <span className="text-xs text-default-400 ml-auto">{filteredTasks.length} tasks</span>
+          </div>
 
           {/* 5 Columns in One Row */}
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -656,6 +710,8 @@ export default function TasksPage() {
                                 onAddSubtask={handleAddSubtaskInline}
                                 onToggleSubtask={handleToggleSubtask}
                                 onReorderSubtasks={handleReorderSubtasks}
+                                onUpdateTitle={handleUpdateTitle}
+                                onTogglePriority={handleTogglePriority}
                               />
                             ))}
                           </SortableContext>
