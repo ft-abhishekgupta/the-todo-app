@@ -13,12 +13,13 @@ import {
   Checkbox,
 } from "@nextui-org/react";
 import { motion } from "framer-motion";
-import { Play, Pause, RotateCcw, Check, Timer, Clock } from "lucide-react";
+import { Play, Pause, RotateCcw, Check, Timer, Clock, ChevronDown, ChevronRight } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { usePomodoroTimer, usePomodoroSessions } from "@/hooks/use-pomodoro";
-import { useTasks } from "@/hooks/use-tasks";
-import { useHabits } from "@/hooks/use-habits";
+import { useTasks, useTaskMutations } from "@/hooks/use-tasks";
+import { useHabits, useHabitMutations } from "@/hooks/use-habits";
 import { format } from "date-fns";
+import { Task } from "@/types";
 
 function LiveTime() {
   const [time, setTime] = useState(new Date());
@@ -47,9 +48,12 @@ export default function PomodoroPage() {
   } = usePomodoroTimer(workDuration);
   const { sessions } = usePomodoroSessions();
   const { tasks } = useTasks();
+  const { updateTask } = useTaskMutations();
   const { habits } = useHabits();
+  const { toggleHabitLog } = useHabitMutations();
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [selectedHabitIds, setSelectedHabitIds] = useState<string[]>([]);
+  const [expandedTasks, setExpandedTasks] = useState<string[]>([]);
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -75,6 +79,27 @@ export default function PomodoroPage() {
 
   const toggleHabit = (id: string) => {
     setSelectedHabitIds((prev) => prev.includes(id) ? prev.filter((h) => h !== id) : [...prev, id]);
+  };
+
+  const toggleExpandTask = (id: string) => {
+    setExpandedTasks((prev) => prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]);
+  };
+
+  const handleToggleTaskComplete = async (task: Task) => {
+    const newStatus = task.status === "completed" ? "not_started" : "completed";
+    await updateTask(task.id, { status: newStatus });
+  };
+
+  const handleToggleSubtask = async (task: Task, subtaskId: string) => {
+    const updatedSubtasks = task.subtasks.map((s) =>
+      s.id === subtaskId ? { ...s, completed: !s.completed } : s
+    );
+    await updateTask(task.id, { subtasks: updatedSubtasks });
+  };
+
+  const handleToggleHabitComplete = async (habitId: string) => {
+    const today = format(new Date(), "yyyy-MM-dd");
+    await toggleHabitLog(habitId, today, true);
   };
 
   const handleStart = () => {
@@ -132,29 +157,59 @@ export default function PomodoroPage() {
             </Button>
           </div>
 
-          {/* Linked tasks in focus */}
+          {/* Linked tasks in focus - with completion */}
           {selectedTaskIds.length > 0 && (
             <div className="w-full mb-4">
               <p className="text-[10px] uppercase text-default-400 font-semibold mb-1.5">Focus Tasks</p>
               <div className="space-y-1">
-                {activeTasks.filter((t) => selectedTaskIds.includes(t.id)).map((t) => (
-                  <div key={t.id} className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
-                    <div className="w-2 h-2 rounded-full bg-primary" />
-                    <span className="text-sm font-medium truncate">{t.title}</span>
+                {tasks.filter((t) => selectedTaskIds.includes(t.id)).map((t) => (
+                  <div key={t.id}>
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
+                      <Checkbox
+                        size="sm"
+                        isSelected={t.status === "completed"}
+                        onValueChange={() => handleToggleTaskComplete(t)}
+                        lineThrough
+                      />
+                      <span className={`text-sm font-medium truncate flex-1 ${t.status === "completed" ? "line-through text-default-400" : ""}`}>{t.title}</span>
+                      {t.subtasks.length > 0 && (
+                        <Button size="sm" isIconOnly variant="light" className="w-5 h-5 min-w-5" onPress={() => toggleExpandTask(t.id)}>
+                          {expandedTasks.includes(t.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        </Button>
+                      )}
+                    </div>
+                    {expandedTasks.includes(t.id) && t.subtasks.length > 0 && (
+                      <div className="ml-6 mt-1 space-y-0.5">
+                        {t.subtasks.map((sub) => (
+                          <div key={sub.id} className="flex items-center gap-2 p-1.5 rounded bg-content2">
+                            <Checkbox
+                              size="sm"
+                              isSelected={sub.completed}
+                              onValueChange={() => handleToggleSubtask(t, sub.id)}
+                              lineThrough
+                            />
+                            <span className={`text-xs truncate ${sub.completed ? "line-through text-default-400" : ""}`}>{sub.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Linked habits in focus */}
+          {/* Linked habits in focus - with completion */}
           {selectedHabitIds.length > 0 && (
             <div className="w-full mb-4">
               <p className="text-[10px] uppercase text-default-400 font-semibold mb-1.5">Focus Habits</p>
               <div className="space-y-1">
                 {habits.filter((h) => selectedHabitIds.includes(h.id)).map((h) => (
                   <div key={h.id} className="flex items-center gap-2 p-2 rounded-lg bg-secondary/5 border border-secondary/20">
-                    <div className="w-2 h-2 rounded-full bg-secondary" />
+                    <Checkbox
+                      size="sm"
+                      onValueChange={() => handleToggleHabitComplete(h.id)}
+                    />
                     <span className="text-sm font-medium truncate">{h.title}</span>
                   </div>
                 ))}
@@ -216,16 +271,35 @@ export default function PomodoroPage() {
               </CardHeader>
               <CardBody className="pt-1 space-y-0.5 max-h-48 overflow-y-auto">
                 {activeTasks.map((task) => (
-                  <div
-                    key={task.id}
-                    className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
-                      selectedTaskIds.includes(task.id) ? "bg-primary/10" : "hover:bg-content2"
-                    }`}
-                    onClick={() => toggleTask(task.id)}
-                  >
-                    <Checkbox size="sm" isSelected={selectedTaskIds.includes(task.id)} onValueChange={() => toggleTask(task.id)} />
-                    <span className="text-sm truncate">{task.title}</span>
-                    <Chip size="sm" variant="flat" className="h-4 ml-auto text-[9px]">{task.category}</Chip>
+                  <div key={task.id}>
+                    <div
+                      className={`flex items-center gap-2 p-2 rounded-lg cursor-pointer transition-colors ${
+                        selectedTaskIds.includes(task.id) ? "bg-primary/10" : "hover:bg-content2"
+                      }`}
+                      onClick={() => toggleTask(task.id)}
+                    >
+                      <Checkbox size="sm" isSelected={selectedTaskIds.includes(task.id)} onValueChange={() => toggleTask(task.id)} />
+                      <span className="text-sm truncate flex-1">{task.title}</span>
+                      {task.subtasks.length > 0 && (
+                        <Button
+                          size="sm" isIconOnly variant="light" className="w-5 h-5 min-w-5"
+                          onPress={(e) => { toggleExpandTask(task.id); }}
+                        >
+                          {expandedTasks.includes(task.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        </Button>
+                      )}
+                      <Chip size="sm" variant="flat" className="h-4 ml-auto text-[9px]">{task.category}</Chip>
+                    </div>
+                    {expandedTasks.includes(task.id) && task.subtasks.length > 0 && (
+                      <div className="ml-8 mt-0.5 space-y-0.5">
+                        {task.subtasks.map((sub) => (
+                          <div key={sub.id} className="flex items-center gap-2 p-1 rounded text-xs text-default-500">
+                            <div className={`w-2 h-2 rounded-full ${sub.completed ? "bg-success" : "bg-default-300"}`} />
+                            <span className={sub.completed ? "line-through text-default-400" : ""}>{sub.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </CardBody>
