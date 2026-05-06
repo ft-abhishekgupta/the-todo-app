@@ -16,6 +16,9 @@ import {
   useDisclosure,
   Divider,
   Chip,
+  Tabs,
+  Tab,
+  Input,
 } from "@nextui-org/react";
 import { motion } from "framer-motion";
 import {
@@ -26,6 +29,7 @@ import {
   FileJson,
   Database,
   User,
+  Clock,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import {
@@ -43,7 +47,7 @@ import toast from "react-hot-toast";
 const COLLECTIONS = ["tasks", "habits", "habitLogs", "pomodoroSessions", "projects", "scheduleEvents", "lists"] as const;
 
 export default function SettingsPage() {
-  const { user, userProfile, loading } = useAuth();
+  const { user, userProfile, loading, updateProfile } = useAuth();
   const router = useRouter();
   const {
     isOpen: isResetOpen,
@@ -236,6 +240,33 @@ export default function SettingsPage() {
                 <Chip size="sm" variant="flat" className="font-mono text-xs">
                   {user.uid.substring(0, 12)}...
                 </Chip>
+              </div>
+            </CardBody>
+          </Card>
+
+          {/* Preferences */}
+          <Card>
+            <CardHeader className="flex gap-3">
+              <Clock size={20} />
+              <span className="font-semibold">Preferences</span>
+            </CardHeader>
+            <CardBody className="space-y-3">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-content2">
+                <div>
+                  <p className="font-medium text-sm">Time format</p>
+                  <p className="text-default-500 text-xs">
+                    How times are displayed across the app
+                  </p>
+                </div>
+                <Tabs
+                  size="sm"
+                  selectedKey={userProfile?.timeFormat || "12h"}
+                  onSelectionChange={(k) => updateProfile({ timeFormat: k as "12h" | "24h" })}
+                  aria-label="Time format"
+                >
+                  <Tab key="12h" title="12-hour" />
+                  <Tab key="24h" title="24-hour" />
+                </Tabs>
               </div>
             </CardBody>
           </Card>

@@ -44,6 +44,7 @@ import { useSchedule } from "@/hooks/use-schedule";
 import { useProjects } from "@/hooks/use-projects";
 import { format } from "date-fns";
 import { Timestamp } from "firebase/firestore";
+import { dateFnsTimeFormat, formatTimeStr } from "@/lib/time";
 import {
   Task,
   TaskPriority,
@@ -126,7 +127,7 @@ const priorityColors: Record<TaskPriority, "default" | "primary" | "warning"> = 
   high: "warning",
 };
 
-function LiveClock() {
+function LiveClock({ fmt }: { fmt: "12h" | "24h" }) {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
@@ -134,7 +135,7 @@ function LiveClock() {
   }, []);
   return (
     <div className="text-center sm:text-right">
-      <p className="text-2xl sm:text-3xl font-bold tabular-nums">{format(time, "hh:mm:ss a")}</p>
+      <p className="text-2xl sm:text-3xl font-bold tabular-nums">{format(time, dateFnsTimeFormat(fmt, true))}</p>
       <p className="text-default-500 text-xs mt-0.5">{format(time, "EEEE, MMMM d, yyyy")}</p>
     </div>
   );
@@ -553,7 +554,8 @@ function CompletedSidebar({
 }
 
 export default function DashboardPage() {
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useAuth();
+  const timeFmt = userProfile?.timeFormat || "12h";
   const router = useRouter();
   const { tasks: todayTasks } = useTodayTasks();
   const { habits } = useHabits();
@@ -702,7 +704,7 @@ export default function DashboardPage() {
                 {activeTasks.length} active · {completedTasks.length} done · {completedHabits}/{habits.length} habits
               </p>
             </div>
-            <LiveClock />
+            <LiveClock fmt={timeFmt} />
           </div>
 
           {/* Stats */}
@@ -751,73 +753,118 @@ export default function DashboardPage() {
             </Card>
           </div>
 
-          {/* Today's Schedule */}
+          {/* Today's Schedule — linear timeline 6 AM to 12 AM */}
           <Card shadow="sm">
             <CardBody className="p-2.5">
-              <div className="flex items-center gap-2 mb-1.5">
+              <div className="flex items-center gap-2 mb-2">
                 <Calendar size={12} className="text-secondary shrink-0" />
                 <span className="text-xs font-semibold">Schedule</span>
-                <span className="text-[10px] text-default-400">{scheduleEvents.length} events</span>
+                <span className="text-[10px] text-default-400">{scheduleEvents.length} events · 6 {timeFmt === "12h" ? "AM" : "00"} → 12 {timeFmt === "12h" ? "AM" : "00"}</span>
                 <Button size="sm" variant="light" className="h-5 min-w-0 px-1.5 text-[10px] ml-auto" onPress={() => router.push("/schedule")}>
                   View
                 </Button>
               </div>
-              {scheduleEvents.length === 0 ? (
-                <p className="text-default-400 text-[10px] text-center py-1">No events</p>
-              ) : (
-                (() => {
-                  const now = format(new Date(), "HH:mm");
-                  const sorted = [...scheduleEvents].sort((a, b) => a.startTime.localeCompare(b.startTime));
-                  let nowIdx = sorted.findIndex((e) => e.startTime > now);
-                  if (nowIdx === -1) nowIdx = sorted.length;
-                  const typeColors: Record<string, string> = {
-                    event: "bg-blue-500", work: "bg-primary", personal: "bg-green-500",
-                    growth: "bg-orange-500", task: "bg-green-500", habit: "bg-purple-500",
-                  };
-                  const renderEvent = (event: typeof sorted[number]) => {
-                    const isPast = event.endTime <= now;
-                    const isCurrent = event.startTime <= now && event.endTime > now;
-                    const tooltipContent = (
-                      <div className="px-1 py-0.5 max-w-[220px]">
-                        <p className="text-xs font-semibold mb-0.5">{event.title}</p>
-                        <p className="text-[10px] text-default-300">
-                          {event.startTime} – {event.endTime} · {event.type}
-                        </p>
-                        {event.notes && (
-                          <p className="text-[10px] text-default-200 mt-1 whitespace-pre-wrap">{event.notes}</p>
-                        )}
-                      </div>
-                    );
-                    return (
-                      <Tooltip key={event.id} content={tooltipContent} placement="top" delay={150} closeDelay={0}>
-                        <div
-                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] cursor-pointer ${
-                            isCurrent ? "bg-primary/10 ring-1 ring-primary/30 font-medium" : isPast ? "opacity-40 line-through" : "bg-content2"
-                          }`}
-                          onClick={() => router.push("/schedule")}
-                        >
-                          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${typeColors[event.type] || "bg-gray-400"}`} />
-                          <span className="text-default-500">{event.startTime}</span>
-                          <span className="truncate max-w-[80px]">{event.title}</span>
-                        </div>
-                      </Tooltip>
-                    );
-                  };
-                  const nowMarker = (
-                    <div key="__now" className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-danger/10 ring-1 ring-danger/40">
-                      <div className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse shrink-0" />
-                      <span className="text-danger font-semibold tabular-nums">Now {now}</span>
+              {(() => {
+                // Linear timeline: 6:00 (=360 min) to 24:00 (=1440 min). 18-hour span.
+                const START_MIN = 6 * 60;
+                const END_MIN = 24 * 60;
+                const SPAN = END_MIN - START_MIN; // 1080
+                const now = new Date();
+                const nowMins = now.getHours() * 60 + now.getMinutes();
+                const nowInRange = nowMins >= START_MIN && nowMins <= END_MIN;
+                const nowPct = nowInRange ? ((nowMins - START_MIN) / SPAN) * 100 : null;
+
+                const typeColors: Record<string, string> = {
+                  event: "bg-blue-500", work: "bg-primary", personal: "bg-green-500",
+                  growth: "bg-orange-500", task: "bg-green-500", habit: "bg-purple-500",
+                };
+
+                // Hour ticks every 3 hours: 6, 9, 12, 15, 18, 21, 24
+                const tickHours = [6, 9, 12, 15, 18, 21, 24];
+
+                return (
+                  <div className="relative">
+                    {/* Track */}
+                    <div className="relative h-8 rounded-md bg-content2/60 overflow-hidden">
+                      {/* Hour grid lines */}
+                      {tickHours.slice(1, -1).map((h) => {
+                        const pct = ((h * 60 - START_MIN) / SPAN) * 100;
+                        return (
+                          <div
+                            key={`grid-${h}`}
+                            className="absolute top-0 bottom-0 w-px bg-default-200/60"
+                            style={{ left: `${pct}%` }}
+                          />
+                        );
+                      })}
+
+                      {/* Events */}
+                      {scheduleEvents.map((event) => {
+                        const sm = parseInt(event.startTime.split(":")[0], 10) * 60 + parseInt(event.startTime.split(":")[1], 10);
+                        const em = parseInt(event.endTime.split(":")[0], 10) * 60 + parseInt(event.endTime.split(":")[1], 10);
+                        const clampedStart = Math.max(sm, START_MIN);
+                        const clampedEnd = Math.min(em, END_MIN);
+                        if (clampedEnd <= clampedStart) return null;
+                        const left = ((clampedStart - START_MIN) / SPAN) * 100;
+                        const width = ((clampedEnd - clampedStart) / SPAN) * 100;
+                        const isPast = nowMins >= em;
+                        const isCurrent = nowMins >= sm && nowMins < em;
+                        const tooltipContent = (
+                          <div className="px-1 py-0.5 max-w-[220px]">
+                            <p className="text-xs font-semibold mb-0.5">{event.title}</p>
+                            <p className="text-[10px] text-default-300">
+                              {formatTimeStr(event.startTime, timeFmt)} – {formatTimeStr(event.endTime, timeFmt)} · {event.type}
+                            </p>
+                            {event.notes && (
+                              <p className="text-[10px] text-default-200 mt-1 whitespace-pre-wrap">{event.notes}</p>
+                            )}
+                          </div>
+                        );
+                        return (
+                          <Tooltip key={event.id} content={tooltipContent} placement="top" delay={150} closeDelay={0}>
+                            <div
+                              className={`absolute top-0.5 bottom-0.5 rounded ${typeColors[event.type] || "bg-gray-400"} ${isPast ? "opacity-40" : ""} ${isCurrent ? "ring-2 ring-primary" : ""} cursor-pointer hover:brightness-110 overflow-hidden`}
+                              style={{ left: `${left}%`, width: `max(${width}%, 6px)` }}
+                              onClick={() => router.push("/schedule")}
+                            >
+                              <span className="text-[9px] text-white font-medium px-1 truncate block leading-tight">{event.title}</span>
+                            </div>
+                          </Tooltip>
+                        );
+                      })}
+
+                      {/* Current time marker */}
+                      {nowPct !== null && (
+                        <Tooltip content={<span className="text-[10px]">Now {formatTimeStr(`${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`, timeFmt)}</span>} placement="top">
+                          <div
+                            className="absolute -top-1 -bottom-1 w-0.5 bg-danger z-10"
+                            style={{ left: `${nowPct}%` }}
+                          >
+                            <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-danger animate-pulse" />
+                          </div>
+                        </Tooltip>
+                      )}
                     </div>
-                  );
-                  return (
-                    <div className="flex flex-wrap items-center gap-1">
-                      {sorted.slice(0, nowIdx).map(renderEvent)}
-                      {nowMarker}
-                      {sorted.slice(nowIdx).map(renderEvent)}
+
+                    {/* Hour labels */}
+                    <div className="relative h-3.5 mt-0.5">
+                      {tickHours.map((h) => {
+                        const pct = ((h * 60 - START_MIN) / SPAN) * 100;
+                        const label = formatTimeStr(`${String(h % 24).padStart(2, "0")}:00`, timeFmt).replace(":00 ", " ").replace(":00", "");
+                        return (
+                          <span
+                            key={`tick-${h}`}
+                            className="absolute text-[9px] text-default-400 -translate-x-1/2 tabular-nums"
+                            style={{ left: `${pct}%` }}
+                          >
+                            {label}
+                          </span>
+                        );
+                      })}
                     </div>
-                  );
-                })()
-              )}
+                  </div>
+                );
+              })()}
             </CardBody>
           </Card>
 

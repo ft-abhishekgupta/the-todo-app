@@ -32,6 +32,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { useSchedule, useScheduleMutations } from "@/hooks/use-schedule";
 import { format, addDays, subDays } from "date-fns";
 import { ScheduleEvent } from "@/types";
+import { formatTimeStr } from "@/lib/time";
 
 const EVENT_TYPES = [
   { key: "event", label: "Event", color: "bg-blue-500" },
@@ -63,8 +64,9 @@ function snapTo5(mins: number): number {
 }
 
 export default function SchedulePage() {
-  const { user, loading } = useAuth();
+  const { user, userProfile, loading } = useAuth();
   const router = useRouter();
+  const timeFmt = userProfile?.timeFormat || "12h";
   const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const { events, loading: eventsLoading } = useSchedule(selectedDate);
   const { addEvent, updateEvent, deleteEvent, duplicateSchedule } = useScheduleMutations();
@@ -289,8 +291,8 @@ export default function SchedulePage() {
                       className="absolute left-0 right-0 border-t border-default-100 flex"
                       style={{ top: `${hour * 60 * PX_PER_MIN}px`, height: `${60 * PX_PER_MIN}px` }}
                     >
-                      <span className="text-[10px] text-default-400 w-12 px-2 py-0.5 shrink-0">
-                        {`${String(hour).padStart(2, "0")}:00`}
+                      <span className="text-[10px] text-default-400 w-14 px-2 py-0.5 shrink-0">
+                        {formatTimeStr(`${String(hour).padStart(2, "0")}:00`, timeFmt)}
                       </span>
                     </div>
                   ))}
@@ -313,11 +315,11 @@ export default function SchedulePage() {
                       style={{ top: `${nowMinutes * PX_PER_MIN}px` }}
                     >
                       <div className="flex items-center">
-                        <span className="text-[10px] text-danger font-semibold w-12 px-1 bg-background tabular-nums">
-                          {minutesToTime(nowMinutes)}
+                        <span className="text-[10px] text-danger font-semibold w-14 px-1 bg-background tabular-nums">
+                          {formatTimeStr(minutesToTime(nowMinutes), timeFmt)}
                         </span>
                         <div className="flex-1 h-0.5 bg-danger" />
-                        <div className="absolute left-12 -translate-x-1/2 -translate-y-1/2 top-0 w-2 h-2 rounded-full bg-danger ring-2 ring-background" />
+                        <div className="absolute left-14 -translate-x-1/2 -translate-y-1/2 top-0 w-2 h-2 rounded-full bg-danger ring-2 ring-background" />
                       </div>
                     </div>
                   )}
@@ -325,17 +327,17 @@ export default function SchedulePage() {
                   {/* Drag preview */}
                   {isDragging && dragPreviewStyle() && (
                     <div
-                      className="absolute left-12 right-2 bg-primary/20 border-2 border-primary/50 rounded-md pointer-events-none z-10"
+                      className="absolute left-14 right-2 bg-primary/20 border-2 border-primary/50 rounded-md pointer-events-none z-10"
                       style={dragPreviewStyle()!}
                     >
                       <span className="text-[10px] text-primary font-medium px-2">
-                        {minutesToTime(Math.min(dragStart!, dragEnd!))} - {minutesToTime(Math.max(dragStart!, dragEnd!))}
+                        {formatTimeStr(minutesToTime(Math.min(dragStart!, dragEnd!)), timeFmt)} - {formatTimeStr(minutesToTime(Math.max(dragStart!, dragEnd!)), timeFmt)}
                       </span>
                     </div>
                   )}
 
                   {/* Events overlay */}
-                  <div className="absolute left-12 right-2 top-0 bottom-0">
+                  <div className="absolute left-14 right-2 top-0 bottom-0">
                     {events.map((event) => {
                       const style = getEventStyle(event);
                       return (
@@ -358,7 +360,7 @@ export default function SchedulePage() {
                               <Trash2 size={10} />
                             </Button>
                           </div>
-                          <span className="text-[10px] opacity-80">{event.startTime} - {event.endTime}</span>
+                          <span className="text-[10px] opacity-80">{formatTimeStr(event.startTime, timeFmt)} - {formatTimeStr(event.endTime, timeFmt)}</span>
                         </div>
                       );
                     })}

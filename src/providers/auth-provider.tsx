@@ -24,6 +24,7 @@ interface AuthContextType {
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
+  updateProfile: (updates: Partial<UserProfile>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -32,6 +33,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   signInWithGoogle: async () => {},
   signOut: async () => {},
+  updateProfile: async () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -89,9 +91,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await firebaseSignOut(auth);
   };
 
+  const updateProfile = async (updates: Partial<UserProfile>) => {
+    if (!user || !userProfile) return;
+    const merged = { ...userProfile, ...updates } as UserProfile;
+    await setDoc(doc(db, "users", user.uid), merged, { merge: true });
+    setUserProfile(merged);
+  };
+
   return (
     <AuthContext.Provider
-      value={{ user, userProfile, loading, signInWithGoogle, signOut }}
+      value={{ user, userProfile, loading, signInWithGoogle, signOut, updateProfile }}
     >
       {children}
     </AuthContext.Provider>

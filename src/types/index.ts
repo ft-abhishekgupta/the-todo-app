@@ -146,6 +146,7 @@ export interface UserProfile {
   displayName: string;
   photoURL?: string;
   pomodoroSettings: PomodoroSettings;
+  timeFormat?: "12h" | "24h";
   createdAt: Timestamp;
 }
 

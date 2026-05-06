@@ -26,20 +26,22 @@ import { useTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { useHabits, useHabitMutations } from "@/hooks/use-habits";
 import { format, differenceInSeconds } from "date-fns";
 import { Task, PomodoroSession } from "@/types";
+import { dateFnsTimeFormat } from "@/lib/time";
 
-function LiveTime() {
+function LiveTime({ fmt }: { fmt: "12h" | "24h" }) {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
-  return <span className="text-sm text-default-500 tabular-nums">{format(time, "hh:mm a")}</span>;
+  return <span className="text-sm text-default-500 tabular-nums">{format(time, dateFnsTimeFormat(fmt))}</span>;
 }
 
 export default function PomodoroPage() {
   const { user, userProfile, loading } = useAuth();
   const router = useRouter();
   const workDuration = userProfile?.pomodoroSettings?.workDuration || 25;
+  const timeFmt = userProfile?.timeFormat || "12h";
   const {
     timeLeft,
     isRunning,
@@ -126,7 +128,7 @@ export default function PomodoroPage() {
           {/* Current time */}
           <div className="flex items-center gap-2 mb-8">
             <Clock size={14} className="text-default-400" />
-            <LiveTime />
+            <LiveTime fmt={timeFmt} />
           </div>
 
           {/* Timer */}
@@ -382,8 +384,8 @@ export default function PomodoroPage() {
                           {session.notes && <FileText size={10} className="text-default-400" />}
                         </div>
                         <p className="text-[10px] text-default-400">
-                          {session.startedAt && format(session.startedAt.toDate(), "h:mm a")}
-                          {session.completedAt && ` → ${format(session.completedAt.toDate(), "h:mm a")}`}
+                          {session.startedAt && format(session.startedAt.toDate(), dateFnsTimeFormat(timeFmt))}
+                          {session.completedAt && ` → ${format(session.completedAt.toDate(), dateFnsTimeFormat(timeFmt))}`}
                         </p>
                         {sessionTasks.length > 0 && (
                           <div className="mt-1 flex flex-wrap gap-1">
@@ -457,7 +459,7 @@ export default function PomodoroPage() {
                     <span>Session {viewSession.isCompleted ? "Completed" : "Incomplete"}</span>
                   </div>
                   <span className="text-xs font-normal text-default-500">
-                    {viewSession.startedAt && format(viewSession.startedAt.toDate(), "MMM d, yyyy · h:mm a")}
+                    {viewSession.startedAt && format(viewSession.startedAt.toDate(), `MMM d, yyyy · ${dateFnsTimeFormat(timeFmt)}`)}
                   </span>
                 </ModalHeader>
                 <ModalBody>
@@ -475,13 +477,13 @@ export default function PomodoroPage() {
                     {viewSession.startedAt && (
                       <div>
                         <p className="text-[10px] uppercase text-default-400 font-semibold mb-0.5">Started</p>
-                        <p className="font-medium">{format(viewSession.startedAt.toDate(), "h:mm:ss a")}</p>
+                        <p className="font-medium">{format(viewSession.startedAt.toDate(), dateFnsTimeFormat(timeFmt, true))}</p>
                       </div>
                     )}
                     {viewSession.completedAt && (
                       <div>
                         <p className="text-[10px] uppercase text-default-400 font-semibold mb-0.5">Ended</p>
-                        <p className="font-medium">{format(viewSession.completedAt.toDate(), "h:mm:ss a")}</p>
+                        <p className="font-medium">{format(viewSession.completedAt.toDate(), dateFnsTimeFormat(timeFmt, true))}</p>
                       </div>
                     )}
                   </div>
