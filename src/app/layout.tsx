@@ -6,7 +6,7 @@ import { Providers } from "@/providers";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Productivo - Advanced Productivity System",
+  title: "TheTodoApp - Advanced Productivity System",
   description:
     "Tasks, Habits, Pomodoro & Projects - All in one productivity app",
 };

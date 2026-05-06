@@ -1,4 +1,4 @@
-# Productivo - Advanced Productivity System
+# TheTodoApp - Advanced Productivity System
 
 A production-ready, scalable productivity web application built with Next.js (App Router) and Firebase.
 

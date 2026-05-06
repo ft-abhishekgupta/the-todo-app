@@ -38,7 +38,7 @@ export default function LoginPage() {
                 <span className="text-white font-bold text-2xl">P</span>
               </div>
               <h1 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary">
-                Productivo
+                TheTodoApp
               </h1>
               <p className="text-default-500">
                 Your advanced productivity system

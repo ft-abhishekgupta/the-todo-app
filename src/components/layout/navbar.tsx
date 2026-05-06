@@ -44,9 +44,9 @@ export function Navbar() {
         <NavbarBrand className="gap-3 max-w-fit">
           <NextLink className="flex justify-start items-center gap-2" href="/dashboard">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="text-white font-bold text-sm">P</span>
+              <span className="text-white font-bold text-sm">T</span>
             </div>
-            <p className="font-bold text-inherit hidden sm:block">Productivo</p>
+            <p className="font-bold text-inherit hidden sm:block">TheTodoApp</p>
           </NextLink>
         </NavbarBrand>
         <div className="hidden lg:flex gap-4 justify-start ml-2">

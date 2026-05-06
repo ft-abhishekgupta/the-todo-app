@@ -1,5 +1,5 @@
 export const siteConfig = {
-  name: "Productivo",
+  name: "TheTodoApp",
   description: "Advanced productivity system - Tasks, Habits, Pomodoro & Projects",
   navItems: [
     { label: "Dashboard", href: "/dashboard" },
