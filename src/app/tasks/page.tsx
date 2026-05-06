@@ -54,6 +54,8 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  DragOverEvent,
+  useDroppable,
 } from "@dnd-kit/core";
 import {
   arrayMove,
@@ -104,6 +106,26 @@ const columns: { key: ColumnKey; label: string; color: string }[] = [
   { key: "tomorrow", label: "Tomorrow", color: "text-success" },
   { key: "future", label: "Future", color: "text-default-500" },
 ];
+
+function getDateForColumn(col: ColumnKey): Date {
+  const today = startOfDay(new Date());
+  switch (col) {
+    case "past": return addDays(today, -3);
+    case "yesterday": return addDays(today, -1);
+    case "today": return today;
+    case "tomorrow": return addDays(today, 1);
+    case "future": return addDays(today, 3);
+  }
+}
+
+function DroppableColumn({ id, children }: { id: string; children: React.ReactNode }) {
+  const { setNodeRef, isOver } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className={`min-h-[100px] transition-colors rounded-lg ${isOver ? "bg-primary/5" : ""}`}>
+      {children}
+    </div>
+  );
+}
 
 function SortableSubtaskRow({
   subtask,
@@ -455,15 +477,47 @@ export default function TasksPage() {
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    const allIds = tasks.map((t) => t.id);
-    const oldIdx = allIds.indexOf(active.id as string);
-    const newIdx = allIds.indexOf(over.id as string);
-    if (oldIdx !== -1 && newIdx !== -1) {
-      const newIds = [...allIds];
-      newIds.splice(oldIdx, 1);
-      newIds.splice(newIdx, 0, active.id as string);
-      reorderTasks(newIds);
+    if (!over) return;
+
+    const activeId = active.id as string;
+    const overId = over.id as string;
+
+    // Check if dropped on a column (droppable zone)
+    const targetColumn = columns.find((c) => c.key === overId);
+    if (targetColumn) {
+      // Dropped on empty column area — move task to that column's date
+      const task = tasks.find((t) => t.id === activeId);
+      if (task) {
+        const currentCol = getColumnForTask(task);
+        if (currentCol !== targetColumn.key) {
+          updateTask(activeId, { scheduledDate: Timestamp.fromDate(getDateForColumn(targetColumn.key)) });
+        }
+      }
+      return;
+    }
+
+    // Dropped on another task — check if it's in a different column
+    const targetTask = tasks.find((t) => t.id === overId);
+    if (targetTask && activeId !== overId) {
+      const sourceTask = tasks.find((t) => t.id === activeId);
+      if (sourceTask) {
+        const sourceCol = getColumnForTask(sourceTask);
+        const targetCol = getColumnForTask(targetTask);
+
+        if (sourceCol !== targetCol) {
+          // Cross-column: update date to target column's date
+          updateTask(activeId, { scheduledDate: Timestamp.fromDate(getDateForColumn(targetCol)) });
+        } else {
+          // Same column: reorder
+          const colTasks = tasksByColumn[sourceCol];
+          const oldIdx = colTasks.findIndex((t) => t.id === activeId);
+          const newIdx = colTasks.findIndex((t) => t.id === overId);
+          if (oldIdx !== -1 && newIdx !== -1) {
+            const reordered = arrayMove(colTasks, oldIdx, newIdx);
+            reorderTasks(reordered.map((t) => t.id));
+          }
+        }
+      }
     }
   };
 
@@ -560,7 +614,7 @@ export default function TasksPage() {
           )}
 
           {/* 5 Columns in One Row */}
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               {columns.map((col) => {
                 const colTasks = tasksByColumn[col.key];
@@ -589,24 +643,26 @@ export default function TasksPage() {
                     </CardHeader>
                     {!isCollapsed && (
                       <CardBody className="pt-0 px-1.5 sm:px-2 pb-2 max-h-[calc(100vh-220px)] overflow-y-auto">
-                        <SortableContext items={colTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                          {colTasks.map((task) => (
-                            <SortableTask
-                              key={task.id}
-                              task={task}
-                              onToggle={() => updateTask(task.id, { status: task.status === "completed" ? "not_started" : "completed" })}
-                              onEdit={() => openEditModal(task)}
-                              onDelete={() => deleteTask(task.id)}
-                              onMoveNext={() => moveToNextDay(task.id, task.scheduledDate?.toDate() || new Date())}
-                              onAddSubtask={handleAddSubtaskInline}
-                              onToggleSubtask={handleToggleSubtask}
-                              onReorderSubtasks={handleReorderSubtasks}
-                            />
-                          ))}
-                        </SortableContext>
-                        {colTasks.length === 0 && (
-                          <p className="text-default-400 text-[10px] text-center py-4">No tasks</p>
-                        )}
+                        <DroppableColumn id={col.key}>
+                          <SortableContext items={colTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                            {colTasks.map((task) => (
+                              <SortableTask
+                                key={task.id}
+                                task={task}
+                                onToggle={() => updateTask(task.id, { status: task.status === "completed" ? "not_started" : "completed" })}
+                                onEdit={() => openEditModal(task)}
+                                onDelete={() => deleteTask(task.id)}
+                                onMoveNext={() => moveToNextDay(task.id, task.scheduledDate?.toDate() || new Date())}
+                                onAddSubtask={handleAddSubtaskInline}
+                                onToggleSubtask={handleToggleSubtask}
+                                onReorderSubtasks={handleReorderSubtasks}
+                              />
+                            ))}
+                          </SortableContext>
+                          {colTasks.length === 0 && (
+                            <p className="text-default-400 text-[10px] text-center py-4">Drop tasks here</p>
+                          )}
+                        </DroppableColumn>
                       </CardBody>
                     )}
                   </Card>
