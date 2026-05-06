@@ -66,7 +66,7 @@ export default function ProjectsPage() {
   const router = useRouter();
   const { projects, loading: projectsLoading } = useProjects();
   const { tasks } = useTasks();
-  const { updateTask } = useTaskMutations();
+  const { addTask, updateTask } = useTaskMutations();
   const { addProject, updateProject, deleteProject } = useProjectMutations();
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const { isOpen: isEditOpen, onOpen: onEditOpen, onOpenChange: onEditOpenChange } = useDisclosure();
@@ -178,10 +178,18 @@ export default function ProjectsPage() {
   };
 
   const handleQuickAddTask = async (projectId: string, projectType: ProjectType) => {
-    if (!quickTaskTitle.trim()) return;
-    const { addTask } = useTaskMutations();
-    // We need to use the mutations hook differently - update task via import
-    // Instead, we'll use updateTask approach through the tasks hook
+    const title = quickTaskTitle.trim();
+    if (!title) return;
+    await addTask({
+      title,
+      status: "not_started",
+      priority: "medium",
+      category: projectType,
+      projectId,
+      subtasks: [],
+      tags: [],
+    });
+    setQuickTaskTitle("");
   };
 
   // Detail view for a selected project
@@ -259,6 +267,34 @@ export default function ProjectsPage() {
             <Tabs aria-label="Project sections" color="primary" variant="underlined">
               <Tab key="tasks" title={`Tasks (${detailTasks.length})`}>
                 <div className="space-y-3 mt-3">
+                  {/* Quick add task */}
+                  <Card shadow="sm">
+                    <CardBody className="p-2">
+                      <div className="flex gap-2">
+                        <Input
+                          size="sm"
+                          placeholder="Add a task to this project..."
+                          value={quickTaskTitle}
+                          onChange={(e) => setQuickTaskTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleQuickAddTask(detailProject.id, detailProject.type || "work");
+                            }
+                          }}
+                          startContent={<Plus size={14} className="text-default-400" />}
+                        />
+                        <Button
+                          size="sm"
+                          color="primary"
+                          isDisabled={!quickTaskTitle.trim()}
+                          onPress={() => handleQuickAddTask(detailProject.id, detailProject.type || "work")}
+                        >
+                          Add
+                        </Button>
+                      </div>
+                    </CardBody>
+                  </Card>
+
                   {/* Active Tasks */}
                   {activeTasks.length > 0 && (
                     <Card shadow="sm">
@@ -314,7 +350,7 @@ export default function ProjectsPage() {
                     <Card shadow="sm">
                       <CardBody className="text-center py-8">
                         <p className="text-default-400 text-sm">No tasks assigned to this project yet.</p>
-                        <p className="text-default-300 text-xs mt-1">Assign tasks from the Tasks page using the project field.</p>
+                        <p className="text-default-300 text-xs mt-1">Use the input above to add a task, or assign existing tasks from the Tasks page.</p>
                       </CardBody>
                     </Card>
                   )}
