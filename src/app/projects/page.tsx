@@ -38,6 +38,7 @@ import {
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { SortableTaskItem } from "@/components/task/sortable-task-item";
+import { TaskEditModal } from "@/components/task/task-edit-modal";
 import { useProjects, useProjectMutations } from "@/hooks/use-projects";
 import { useTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { Project, ProjectType, ProjectStatus, Task, TaskPriority, Subtask } from "@/types";
@@ -85,6 +86,8 @@ export default function ProjectsPage() {
   const { addProject, updateProject, deleteProject } = useProjectMutations();
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const { isOpen: isEditOpen, onOpen: onEditOpen, onOpenChange: onEditOpenChange } = useDisclosure();
+  const { isOpen: isTaskEditOpen, onOpen: onTaskEditOpen, onOpenChange: onTaskEditOpenChange } = useDisclosure();
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   // Form state
   const [formName, setFormName] = useState("");
@@ -228,7 +231,8 @@ export default function ProjectsPage() {
   };
 
   const handleOpenEditModal = (task: Task) => {
-    router.push(`/tasks?edit=${task.id}`);
+    setEditingTask(task);
+    onTaskEditOpen();
   };
 
   const handleUpdateSubtaskTitle = (taskId: string, subtaskId: string, title: string) => {
@@ -712,6 +716,12 @@ export default function ProjectsPage() {
             )}
           </ModalContent>
         </Modal>
+
+        <TaskEditModal
+          isOpen={isTaskEditOpen}
+          onOpenChange={onTaskEditOpenChange}
+          task={editingTask}
+        />
       </main>
     </div>
   );

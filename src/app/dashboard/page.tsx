@@ -13,6 +13,7 @@ import {
   Progress,
   Select,
   SelectItem,
+  useDisclosure,
 } from "@nextui-org/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -34,6 +35,7 @@ import {
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { SortableTaskItem } from "@/components/task/sortable-task-item";
+import { TaskEditModal } from "@/components/task/task-edit-modal";
 import { useTodayTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { useHabits, useHabitLogs, useHabitMutations } from "@/hooks/use-habits";
 import { usePomodoroSessions } from "@/hooks/use-pomodoro";
@@ -587,6 +589,8 @@ export default function DashboardPage() {
   const [completedOpen, setCompletedOpen] = useState(false);
   const [focusTasks, setFocusTasks] = useState<Record<TaskType, string>>({} as any);
   const [focusHabitId, setFocusHabitId] = useState<string>("");
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const { isOpen: isEditModalOpen, onOpen: onEditModalOpen, onOpenChange: onEditModalOpenChange } = useDisclosure();
 
   const projectsMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -691,7 +695,8 @@ export default function DashboardPage() {
   };
 
   const handleOpenEditModal = (task: Task) => {
-    router.push(`/tasks?edit=${task.id}`);
+    setEditingTask(task);
+    onEditModalOpen();
   };
 
   const handleUpdateSubtaskTitle = (taskId: string, subtaskId: string, title: string) => {
@@ -848,6 +853,12 @@ export default function DashboardPage() {
       </main>
 
       <CompletedSidebar tasks={completedTasks} isOpen={completedOpen} onToggle={() => setCompletedOpen(!completedOpen)} />
+
+      <TaskEditModal
+        isOpen={isEditModalOpen}
+        onOpenChange={onEditModalOpenChange}
+        task={editingTask}
+      />
     </div>
   );
 }
