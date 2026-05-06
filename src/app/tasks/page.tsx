@@ -704,6 +704,19 @@ function TasksPageContent() {
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-lg font-bold mr-1">Tasks</h1>
             <Input
+              placeholder="Quick add... (Enter)"
+              value={quickAddTitle}
+              onValueChange={setQuickAddTitle}
+              onKeyDown={(e) => e.key === "Enter" && handleQuickAdd()}
+              variant="bordered"
+              size="sm"
+              startContent={<Plus size={14} className="text-default-400" />}
+              className="w-44 sm:w-56 flex-1 min-w-[150px]"
+            />
+            <Button color="primary" size="sm" variant="flat" onPress={() => openCreateModal("today")} className="shrink-0">
+              + Detailed
+            </Button>
+            <Input
               placeholder="Search..."
               value={searchQuery}
               onValueChange={setSearchQuery}
@@ -763,23 +776,6 @@ function TasksPageContent() {
               </Button>
             )}
             <span className="text-[10px] text-default-400">{filteredTasks.length}</span>
-          </div>
-
-          {/* Quick Add */}
-          <div className="flex gap-2">
-            <Input
-              placeholder="Quick add task... (Enter to add)"
-              value={quickAddTitle}
-              onValueChange={setQuickAddTitle}
-              onKeyDown={(e) => e.key === "Enter" && handleQuickAdd()}
-              variant="bordered"
-              size="sm"
-              startContent={<Plus size={14} className="text-default-400" />}
-              className="flex-1"
-            />
-            <Button color="primary" size="sm" onPress={() => openCreateModal("today")}>
-              + Detailed
-            </Button>
           </div>
 
           {/* 5 Columns in One Row */}

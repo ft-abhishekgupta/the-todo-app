@@ -11,15 +11,21 @@ import {
   Textarea,
   Chip,
   Checkbox,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalBody,
+  ModalFooter,
+  useDisclosure,
 } from "@nextui-org/react";
 import { motion } from "framer-motion";
-import { Play, Pause, RotateCcw, Check, Timer, Clock, ChevronDown, ChevronRight } from "lucide-react";
+import { Play, Pause, RotateCcw, Check, Timer, Clock, ChevronDown, ChevronRight, Trash2, FileText, X } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
-import { usePomodoroTimer, usePomodoroSessions } from "@/hooks/use-pomodoro";
+import { usePomodoroTimer, usePomodoroSessions, usePomodoroMutations } from "@/hooks/use-pomodoro";
 import { useTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { useHabits, useHabitMutations } from "@/hooks/use-habits";
-import { format } from "date-fns";
-import { Task } from "@/types";
+import { format, differenceInSeconds } from "date-fns";
+import { Task, PomodoroSession } from "@/types";
 
 function LiveTime() {
   const [time, setTime] = useState(new Date());
@@ -47,6 +53,7 @@ export default function PomodoroPage() {
     resetTimer,
   } = usePomodoroTimer(workDuration);
   const { sessions } = usePomodoroSessions();
+  const { deleteSession } = usePomodoroMutations();
   const { tasks } = useTasks();
   const { updateTask } = useTaskMutations();
   const { habits } = useHabits();
@@ -54,6 +61,8 @@ export default function PomodoroPage() {
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [selectedHabitIds, setSelectedHabitIds] = useState<string[]>([]);
   const [expandedTasks, setExpandedTasks] = useState<string[]>([]);
+  const [viewSession, setViewSession] = useState<PomodoroSession | null>(null);
+  const { isOpen: isSessionOpen, onOpen: onSessionOpen, onOpenChange: onSessionOpenChange } = useDisclosure();
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -339,28 +348,209 @@ export default function PomodoroPage() {
               {sessions.length === 0 ? (
                 <p className="text-default-400 text-sm text-center py-4">No sessions yet</p>
               ) : (
-                sessions.map((session) => (
-                  <div key={session.id} className="flex items-center gap-2 p-2 rounded-lg bg-content2">
-                    <div className={`p-1 rounded-full ${session.isCompleted ? "bg-success/20" : "bg-warning/20"}`}>
-                      <Timer size={12} className={session.isCompleted ? "text-success" : "text-warning"} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium flex items-center">
-                        {session.duration}min
-                        {session.isCompleted && <Chip size="sm" color="success" variant="flat" className="ml-1 h-4 text-[9px]">Done</Chip>}
+                sessions.map((session) => {
+                  const sessionTasks = (session.taskIds || (session.taskId ? [session.taskId] : []))
+                    .map((id) => tasks.find((t) => t.id === id))
+                    .filter(Boolean) as Task[];
+                  const completedTasks = sessionTasks.filter((t) => t.status === "completed");
+                  const actualSeconds = session.startedAt && session.completedAt
+                    ? differenceInSeconds(session.completedAt.toDate(), session.startedAt.toDate())
+                    : 0;
+                  const actualMin = Math.floor(actualSeconds / 60);
+                  const actualSec = actualSeconds % 60;
+
+                  return (
+                    <div
+                      key={session.id}
+                      className="flex items-start gap-2 p-2 rounded-lg bg-content2 hover:bg-content3 cursor-pointer group"
+                      onClick={() => { setViewSession(session); onSessionOpen(); }}
+                    >
+                      <div className={`p-1 rounded-full mt-0.5 shrink-0 ${session.isCompleted ? "bg-success/20" : "bg-warning/20"}`}>
+                        <Timer size={12} className={session.isCompleted ? "text-success" : "text-warning"} />
                       </div>
-                      <p className="text-[10px] text-default-400 truncate">
-                        {session.startedAt && format(session.startedAt.toDate(), "h:mm a")}
-                        {session.notes && ` · ${session.notes.substring(0, 40)}`}
-                      </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-xs font-medium flex items-center gap-1 flex-wrap">
+                          <span>{session.duration}min planned</span>
+                          {session.isCompleted && actualSeconds > 0 && (
+                            <span className="text-default-500">· {actualMin}m {actualSec}s used</span>
+                          )}
+                          {session.isCompleted ? (
+                            <Chip size="sm" color="success" variant="flat" className="h-4 text-[9px]">Done</Chip>
+                          ) : (
+                            <Chip size="sm" color="warning" variant="flat" className="h-4 text-[9px]">Incomplete</Chip>
+                          )}
+                          {session.notes && <FileText size={10} className="text-default-400" />}
+                        </div>
+                        <p className="text-[10px] text-default-400">
+                          {session.startedAt && format(session.startedAt.toDate(), "h:mm a")}
+                          {session.completedAt && ` → ${format(session.completedAt.toDate(), "h:mm a")}`}
+                        </p>
+                        {sessionTasks.length > 0 && (
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {sessionTasks.slice(0, 3).map((t) => (
+                              <Chip
+                                key={t.id}
+                                size="sm"
+                                variant="flat"
+                                color={t.status === "completed" ? "success" : "default"}
+                                className="h-4 text-[9px] max-w-[140px]"
+                                startContent={t.status === "completed" ? <Check size={8} /> : null}
+                              >
+                                <span className={`truncate ${t.status === "completed" ? "line-through" : ""}`}>{t.title}</span>
+                              </Chip>
+                            ))}
+                            {sessionTasks.length > 3 && (
+                              <span className="text-[9px] text-default-400">+{sessionTasks.length - 3}</span>
+                            )}
+                          </div>
+                        )}
+                        {sessionTasks.length > 0 && (
+                          <p className="text-[9px] text-default-400 mt-0.5">
+                            {completedTasks.length}/{sessionTasks.length} completed
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        isIconOnly
+                        size="sm"
+                        variant="light"
+                        color="danger"
+                        className="opacity-0 group-hover:opacity-100 w-5 h-5 min-w-5 shrink-0"
+                        onPress={() => {
+                          if (confirm("Delete this session?")) deleteSession(session.id);
+                        }}
+                        title="Delete session"
+                      >
+                        <Trash2 size={10} />
+                      </Button>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </CardBody>
           </Card>
         </motion.div>
       </main>
+
+      {/* Session Details Modal */}
+      <Modal isOpen={isSessionOpen} onOpenChange={onSessionOpenChange} size="md" scrollBehavior="inside">
+        <ModalContent>
+          {(onClose) => {
+            if (!viewSession) return null;
+            const sessionTasks = (viewSession.taskIds || (viewSession.taskId ? [viewSession.taskId] : []))
+              .map((id) => tasks.find((t) => t.id === id))
+              .filter(Boolean) as Task[];
+            const sessionHabits = (viewSession.habitIds || [])
+              .map((id) => habits.find((h) => h.id === id))
+              .filter(Boolean);
+            const actualSeconds = viewSession.startedAt && viewSession.completedAt
+              ? differenceInSeconds(viewSession.completedAt.toDate(), viewSession.startedAt.toDate())
+              : 0;
+            const actualMin = Math.floor(actualSeconds / 60);
+            const actualSec = actualSeconds % 60;
+
+            return (
+              <>
+                <ModalHeader className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <Timer size={16} className={viewSession.isCompleted ? "text-success" : "text-warning"} />
+                    <span>Session {viewSession.isCompleted ? "Completed" : "Incomplete"}</span>
+                  </div>
+                  <span className="text-xs font-normal text-default-500">
+                    {viewSession.startedAt && format(viewSession.startedAt.toDate(), "MMM d, yyyy · h:mm a")}
+                  </span>
+                </ModalHeader>
+                <ModalBody>
+                  <div className="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <p className="text-[10px] uppercase text-default-400 font-semibold mb-0.5">Planned</p>
+                      <p className="font-medium">{viewSession.duration} min</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] uppercase text-default-400 font-semibold mb-0.5">Actual</p>
+                      <p className="font-medium">
+                        {actualSeconds > 0 ? `${actualMin}m ${actualSec}s` : "—"}
+                      </p>
+                    </div>
+                    {viewSession.startedAt && (
+                      <div>
+                        <p className="text-[10px] uppercase text-default-400 font-semibold mb-0.5">Started</p>
+                        <p className="font-medium">{format(viewSession.startedAt.toDate(), "h:mm:ss a")}</p>
+                      </div>
+                    )}
+                    {viewSession.completedAt && (
+                      <div>
+                        <p className="text-[10px] uppercase text-default-400 font-semibold mb-0.5">Ended</p>
+                        <p className="font-medium">{format(viewSession.completedAt.toDate(), "h:mm:ss a")}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {sessionTasks.length > 0 && (
+                    <div>
+                      <p className="text-[10px] uppercase text-default-400 font-semibold mb-1">
+                        Linked Tasks ({sessionTasks.filter((t) => t.status === "completed").length}/{sessionTasks.length} completed)
+                      </p>
+                      <div className="space-y-1">
+                        {sessionTasks.map((t) => (
+                          <div key={t.id} className="flex items-center gap-2 p-2 rounded-lg bg-content2">
+                            {t.status === "completed" ? (
+                              <Check size={12} className="text-success shrink-0" />
+                            ) : (
+                              <X size={12} className="text-default-400 shrink-0" />
+                            )}
+                            <span className={`text-sm truncate flex-1 ${t.status === "completed" ? "line-through text-default-400" : ""}`}>
+                              {t.title}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {sessionHabits.length > 0 && (
+                    <div>
+                      <p className="text-[10px] uppercase text-default-400 font-semibold mb-1">Linked Habits</p>
+                      <div className="space-y-1">
+                        {sessionHabits.map((h: any) => (
+                          <div key={h.id} className="flex items-center gap-2 p-2 rounded-lg bg-content2">
+                            <span className="text-sm truncate flex-1">{h.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <p className="text-[10px] uppercase text-default-400 font-semibold mb-1">Notes</p>
+                    {viewSession.notes ? (
+                      <div className="p-3 rounded-lg bg-content2 text-sm whitespace-pre-wrap">{viewSession.notes}</div>
+                    ) : (
+                      <p className="text-sm text-default-400 italic">No notes for this session.</p>
+                    )}
+                  </div>
+                </ModalBody>
+                <ModalFooter>
+                  <Button
+                    color="danger"
+                    variant="flat"
+                    startContent={<Trash2 size={14} />}
+                    onPress={() => {
+                      if (confirm("Delete this session?")) {
+                        deleteSession(viewSession.id);
+                        onClose();
+                      }
+                    }}
+                  >
+                    Delete Session
+                  </Button>
+                  <Button color="primary" onPress={onClose}>Close</Button>
+                </ModalFooter>
+              </>
+            );
+          }}
+        </ModalContent>
+      </Modal>
     </div>
   );
 }

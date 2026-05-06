@@ -6,6 +6,7 @@ import {
   onSnapshot,
   addDoc,
   updateDoc,
+  deleteDoc,
   doc,
   Timestamp,
 } from "firebase/firestore";
@@ -14,6 +15,7 @@ import { PomodoroSession } from "@/types";
 import { useAuth } from "@/providers/auth-provider";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { format } from "date-fns";
+import toast from "react-hot-toast";
 
 export function usePomodoroSessions(date?: string) {
   const { user } = useAuth();
@@ -54,6 +56,14 @@ export function usePomodoroSessions(date?: string) {
   }, [user, date]);
 
   return { sessions, loading };
+}
+
+export function usePomodoroMutations() {
+  const deleteSession = async (sessionId: string) => {
+    await deleteDoc(doc(db, "pomodoroSessions", sessionId));
+    toast.success("Session deleted");
+  };
+  return { deleteSession };
 }
 
 export function usePomodoroTimer(workDuration: number = 25) {

@@ -537,31 +537,29 @@ export default function ProjectsPage() {
       <Navbar />
       <main className="container mx-auto max-w-7xl px-3 sm:px-4 py-4 sm:py-6">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-            <div>
-              <h1 className="text-2xl font-bold">Projects</h1>
-              <p className="text-default-500 text-sm">{projects.length} projects</p>
+          {/* Header with title, filters, and new project in one row */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="mr-2">
+              <h1 className="text-lg font-bold leading-none">Projects</h1>
+              <p className="text-default-500 text-[10px]">{projects.length} total</p>
             </div>
-            <Button color="primary" size="sm" startContent={<Plus size={16} />} onPress={onOpen}>
-              New Project
-            </Button>
-          </div>
-
-          {/* Filters */}
-          <div className="flex gap-2 flex-wrap">
-            <Select size="sm" variant="bordered" className="w-32" selectedKeys={[filterType]} onSelectionChange={(k) => setFilterType(Array.from(k)[0] as string)} label="Type">
+            <Select size="sm" variant="bordered" className="w-32" aria-label="Type" placeholder="Type" selectedKeys={[filterType]} onSelectionChange={(k) => setFilterType(Array.from(k)[0] as string)}>
               <SelectItem key="all">All Types</SelectItem>
               <SelectItem key="work">Work</SelectItem>
               <SelectItem key="personal">Personal</SelectItem>
               <SelectItem key="growth">Growth</SelectItem>
             </Select>
-            <Select size="sm" variant="bordered" className="w-32" selectedKeys={[filterStatus]} onSelectionChange={(k) => setFilterStatus(Array.from(k)[0] as string)} label="Status">
+            <Select size="sm" variant="bordered" className="w-32" aria-label="Status" placeholder="Status" selectedKeys={[filterStatus]} onSelectionChange={(k) => setFilterStatus(Array.from(k)[0] as string)}>
               <SelectItem key="all">All</SelectItem>
               <SelectItem key="active">Active</SelectItem>
               <SelectItem key="on_hold">On Hold</SelectItem>
               <SelectItem key="completed">Completed</SelectItem>
             </Select>
+            <span className="text-[10px] text-default-400">{filteredProjects.length}</span>
+            <div className="flex-1" />
+            <Button color="primary" size="sm" startContent={<Plus size={14} />} onPress={onOpen} className="shrink-0">
+              New Project
+            </Button>
           </div>
 
           {/* Projects Grid */}
