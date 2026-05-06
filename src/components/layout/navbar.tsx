@@ -23,10 +23,11 @@ import clsx from "clsx";
 import { useAuth } from "@/providers/auth-provider";
 import { siteConfig } from "@/config/site";
 import { ThemeSwitch } from "./theme-switch";
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, Settings } from "lucide-react";
 
 export function Navbar() {
   const { user, signOut } = useAuth();
+  const router = useRouter();
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -88,6 +89,13 @@ export function Navbar() {
               <DropdownItem key="profile" className="h-14 gap-2">
                 <p className="font-semibold">{user.displayName}</p>
                 <p className="text-xs text-default-500">{user.email}</p>
+              </DropdownItem>
+              <DropdownItem
+                key="settings"
+                startContent={<Settings size={16} />}
+                onPress={() => router.push("/settings")}
+              >
+                Settings
               </DropdownItem>
               <DropdownItem
                 key="logout"
