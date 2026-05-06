@@ -124,7 +124,7 @@ export interface ScheduleEvent {
   title: string;
   startTime: string; // HH:mm
   endTime: string; // HH:mm
-  type: "meeting" | "task" | "habit" | "block" | "break";
+  type: "event" | "work" | "personal" | "growth" | "task" | "habit";
   color?: string;
   linkedTaskId?: string;
   linkedHabitId?: string;

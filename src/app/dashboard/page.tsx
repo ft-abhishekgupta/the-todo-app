@@ -1082,11 +1082,12 @@ export default function DashboardPage() {
                     const isPast = event.endTime <= now;
                     const isCurrent = event.startTime <= now && event.endTime > now;
                     const typeColors: Record<string, string> = {
-                      meeting: "bg-blue-500",
+                      event: "bg-blue-500",
+                      work: "bg-primary",
+                      personal: "bg-green-500",
+                      growth: "bg-orange-500",
                       task: "bg-green-500",
                       habit: "bg-purple-500",
-                      block: "bg-orange-500",
-                      break: "bg-gray-400",
                     };
                     return (
                       <div

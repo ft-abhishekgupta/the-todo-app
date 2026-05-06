@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/providers/auth-provider";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
   Card,
   CardBody,
@@ -34,17 +34,32 @@ import { format, addDays, subDays } from "date-fns";
 import { ScheduleEvent } from "@/types";
 
 const EVENT_TYPES = [
-  { key: "meeting", label: "Meeting", color: "bg-blue-500" },
-  { key: "task", label: "Task", color: "bg-green-500" },
-  { key: "habit", label: "Habit", color: "bg-purple-500" },
-  { key: "block", label: "Focus Block", color: "bg-orange-500" },
-  { key: "break", label: "Break", color: "bg-gray-400" },
+  { key: "event", label: "Event", color: "bg-blue-500" },
+  { key: "work", label: "Work", color: "bg-primary" },
+  { key: "personal", label: "Personal", color: "bg-green-500" },
+  { key: "growth", label: "Growth", color: "bg-orange-500" },
 ] as const;
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+const PX_PER_MIN = 1; // 1px per minute = 60px per hour
 
 function getEventColor(type: string) {
-  return EVENT_TYPES.find((t) => t.key === type)?.color || "bg-gray-400";
+  return EVENT_TYPES.find((t) => t.key === type)?.color || "bg-blue-500";
+}
+
+function minutesToTime(mins: number): string {
+  const h = Math.floor(mins / 60) % 24;
+  const m = mins % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+function timeToMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return h * 60 + m;
+}
+
+function snapTo5(mins: number): number {
+  return Math.round(mins / 5) * 5;
 }
 
 export default function SchedulePage() {
@@ -59,10 +74,16 @@ export default function SchedulePage() {
   const [formTitle, setFormTitle] = useState("");
   const [formStartTime, setFormStartTime] = useState("09:00");
   const [formEndTime, setFormEndTime] = useState("10:00");
-  const [formType, setFormType] = useState<ScheduleEvent["type"]>("meeting");
+  const [formType, setFormType] = useState<ScheduleEvent["type"]>("event");
   const [formNotes, setFormNotes] = useState("");
   const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null);
   const [dupTargetDate, setDupTargetDate] = useState(format(addDays(new Date(), 1), "yyyy-MM-dd"));
+
+  // Drag-to-create state
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState<number | null>(null);
+  const [dragEnd, setDragEnd] = useState<number | null>(null);
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -81,12 +102,49 @@ export default function SchedulePage() {
     setSelectedDate(format(d, "yyyy-MM-dd"));
   };
 
-  const openCreate = (hour?: number) => {
+  const getMinutesFromY = (clientY: number): number => {
+    if (!timelineRef.current) return 0;
+    const rect = timelineRef.current.getBoundingClientRect();
+    const y = clientY - rect.top + timelineRef.current.scrollTop;
+    return snapTo5(Math.max(0, Math.min(24 * 60 - 5, Math.floor(y / PX_PER_MIN))));
+  };
+
+  const handleTimelineMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest("[data-event]")) return;
+    const mins = getMinutesFromY(e.clientY);
+    setIsDragging(true);
+    setDragStart(mins);
+    setDragEnd(mins + 30);
+  };
+
+  const handleTimelineMouseMove = (e: React.MouseEvent) => {
+    if (!isDragging || dragStart === null) return;
+    const mins = getMinutesFromY(e.clientY);
+    setDragEnd(Math.max(dragStart + 5, mins));
+  };
+
+  const handleTimelineMouseUp = () => {
+    if (!isDragging || dragStart === null || dragEnd === null) return;
+    setIsDragging(false);
+    const start = Math.min(dragStart, dragEnd);
+    const end = Math.max(dragStart, dragEnd);
+    setFormStartTime(minutesToTime(start));
+    setFormEndTime(minutesToTime(end));
     setEditingEvent(null);
     setFormTitle("");
-    setFormStartTime(hour !== undefined ? `${String(hour).padStart(2, "0")}:00` : "09:00");
-    setFormEndTime(hour !== undefined ? `${String(hour + 1).padStart(2, "0")}:00` : "10:00");
-    setFormType("meeting");
+    setFormType("event");
+    setFormNotes("");
+    setDragStart(null);
+    setDragEnd(null);
+    onOpen();
+  };
+
+  const openCreate = () => {
+    setEditingEvent(null);
+    setFormTitle("");
+    setFormStartTime("09:00");
+    setFormEndTime("10:00");
+    setFormType("event");
     setFormNotes("");
     onOpen();
   };
@@ -129,13 +187,19 @@ export default function SchedulePage() {
     onDupOpenChange();
   };
 
-  // Calculate position for events in the timeline
   const getEventStyle = (event: ScheduleEvent) => {
-    const [startH, startM] = event.startTime.split(":").map(Number);
-    const [endH, endM] = event.endTime.split(":").map(Number);
-    const top = (startH + startM / 60) * 60; // 60px per hour
-    const height = Math.max(((endH + endM / 60) - (startH + startM / 60)) * 60, 20);
+    const startMins = timeToMinutes(event.startTime);
+    const endMins = timeToMinutes(event.endTime);
+    const top = startMins * PX_PER_MIN;
+    const height = Math.max((endMins - startMins) * PX_PER_MIN, 15);
     return { top: `${top}px`, height: `${height}px` };
+  };
+
+  const dragPreviewStyle = () => {
+    if (dragStart === null || dragEnd === null) return null;
+    const start = Math.min(dragStart, dragEnd);
+    const end = Math.max(dragStart, dragEnd);
+    return { top: `${start * PX_PER_MIN}px`, height: `${(end - start) * PX_PER_MIN}px` };
   };
 
   return (
@@ -153,7 +217,7 @@ export default function SchedulePage() {
               <Button size="sm" variant="flat" onPress={onDupOpen} startContent={<Copy size={14} />}>
                 Duplicate
               </Button>
-              <Button size="sm" color="primary" onPress={() => openCreate()} startContent={<Plus size={14} />}>
+              <Button size="sm" color="primary" onPress={openCreate} startContent={<Plus size={14} />}>
                 Add Event
               </Button>
             </div>
@@ -190,25 +254,55 @@ export default function SchedulePage() {
 
           {/* Timeline */}
           <Card shadow="sm">
-            <CardHeader className="px-4 py-2.5">
+            <CardHeader className="px-4 py-2.5 flex justify-between items-center">
               <span className="text-sm font-semibold">{events.length} events</span>
+              <span className="text-[10px] text-default-400">Drag on timeline to create</span>
             </CardHeader>
             <CardBody className="px-0 py-0">
-              <div className="relative overflow-y-auto max-h-[calc(100vh-280px)]">
+              <div
+                ref={timelineRef}
+                className="relative overflow-y-auto max-h-[calc(100vh-280px)] select-none"
+                onMouseDown={handleTimelineMouseDown}
+                onMouseMove={handleTimelineMouseMove}
+                onMouseUp={handleTimelineMouseUp}
+                onMouseLeave={() => { if (isDragging) { setIsDragging(false); setDragStart(null); setDragEnd(null); } }}
+              >
                 {/* Hour grid */}
-                <div className="relative" style={{ height: `${24 * 60}px` }}>
+                <div className="relative" style={{ height: `${24 * 60 * PX_PER_MIN}px` }}>
                   {HOURS.map((hour) => (
                     <div
                       key={hour}
-                      className="absolute left-0 right-0 border-t border-default-100 flex cursor-pointer hover:bg-content2/30 transition-colors"
-                      style={{ top: `${hour * 60}px`, height: "60px" }}
-                      onClick={() => openCreate(hour)}
+                      className="absolute left-0 right-0 border-t border-default-100 flex"
+                      style={{ top: `${hour * 60 * PX_PER_MIN}px`, height: `${60 * PX_PER_MIN}px` }}
                     >
-                      <span className="text-[10px] text-default-400 w-12 px-2 py-1 shrink-0">
+                      <span className="text-[10px] text-default-400 w-12 px-2 py-0.5 shrink-0">
                         {`${String(hour).padStart(2, "0")}:00`}
                       </span>
                     </div>
                   ))}
+
+                  {/* 5-min grid lines (lighter) */}
+                  {HOURS.map((hour) =>
+                    [15, 30, 45].map((min) => (
+                      <div
+                        key={`${hour}-${min}`}
+                        className="absolute left-12 right-0 border-t border-default-50"
+                        style={{ top: `${(hour * 60 + min) * PX_PER_MIN}px` }}
+                      />
+                    ))
+                  )}
+
+                  {/* Drag preview */}
+                  {isDragging && dragPreviewStyle() && (
+                    <div
+                      className="absolute left-12 right-2 bg-primary/20 border-2 border-primary/50 rounded-md pointer-events-none z-10"
+                      style={dragPreviewStyle()!}
+                    >
+                      <span className="text-[10px] text-primary font-medium px-2">
+                        {minutesToTime(Math.min(dragStart!, dragEnd!))} - {minutesToTime(Math.max(dragStart!, dragEnd!))}
+                      </span>
+                    </div>
+                  )}
 
                   {/* Events overlay */}
                   <div className="absolute left-12 right-2 top-0 bottom-0">
@@ -217,9 +311,10 @@ export default function SchedulePage() {
                       return (
                         <div
                           key={event.id}
-                          className={`absolute left-0 right-0 rounded-md px-2 py-1 cursor-pointer border border-white/20 overflow-hidden group ${getEventColor(event.type)} text-white`}
+                          data-event
+                          className={`absolute left-0 right-0 rounded-md px-2 py-0.5 cursor-pointer border border-white/20 overflow-hidden group ${getEventColor(event.type)} text-white z-20`}
                           style={style}
-                          onClick={() => openEdit(event)}
+                          onClick={(e) => { e.stopPropagation(); openEdit(event); }}
                         >
                           <div className="flex items-center justify-between">
                             <span className="text-xs font-medium truncate">{event.title}</span>
@@ -228,7 +323,7 @@ export default function SchedulePage() {
                               size="sm"
                               variant="light"
                               className="opacity-0 group-hover:opacity-100 h-5 w-5 min-w-5 text-white"
-                              onPress={(e) => { handleDelete(event.id); }}
+                              onPress={() => handleDelete(event.id)}
                             >
                               <Trash2 size={10} />
                             </Button>
