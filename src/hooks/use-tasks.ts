@@ -89,8 +89,13 @@ export function useTaskMutations() {
       query(tasksRef, where("userId", "==", user.uid))
     );
 
+    // Remove undefined fields - Firestore doesn't accept them
+    const cleanTask = Object.fromEntries(
+      Object.entries(task).filter(([_, v]) => v !== undefined)
+    );
+
     const newTask = {
-      ...task,
+      ...cleanTask,
       userId: user.uid,
       order: snapshot.size,
       subtasks: task.subtasks || [],
@@ -106,9 +111,13 @@ export function useTaskMutations() {
   const updateTask = async (taskId: string, updates: Partial<Task>) => {
     if (!user) throw new Error("Not authenticated");
 
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, v]) => v !== undefined)
+    );
+
     const taskRef = doc(db, "tasks", taskId);
     await updateDoc(taskRef, {
-      ...updates,
+      ...cleanUpdates,
       updatedAt: Timestamp.now(),
     });
   };

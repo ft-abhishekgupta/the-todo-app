@@ -59,8 +59,12 @@ export function useProjectMutations() {
   ) => {
     if (!user) throw new Error("Not authenticated");
 
+    const cleanProject = Object.fromEntries(
+      Object.entries(project).filter(([_, v]) => v !== undefined)
+    );
+
     await addDoc(collection(db, "projects"), {
-      ...project,
+      ...cleanProject,
       userId: user.uid,
       createdAt: Timestamp.now(),
       updatedAt: Timestamp.now(),

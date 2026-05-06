@@ -105,8 +105,13 @@ export function useHabitMutations() {
   ) => {
     if (!user) throw new Error("Not authenticated");
 
+    // Remove undefined fields - Firestore doesn't accept them
+    const cleanHabit = Object.fromEntries(
+      Object.entries(habit).filter(([_, v]) => v !== undefined)
+    );
+
     await addDoc(collection(db, "habits"), {
-      ...habit,
+      ...cleanHabit,
       userId: user.uid,
       streak: 0,
       longestStreak: 0,
