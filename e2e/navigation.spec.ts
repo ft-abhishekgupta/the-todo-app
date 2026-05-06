@@ -28,6 +28,7 @@ test.describe("Page Loading (unauthenticated redirects)", () => {
     "/dashboard",
     "/tasks",
     "/projects",
+    "/lists",
     "/habits",
     "/schedule",
     "/calendar",

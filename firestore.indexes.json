@@ -59,6 +59,15 @@
         { "fieldPath": "habitId", "order": "ASCENDING" },
         { "fieldPath": "completed", "order": "ASCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "lists",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "userId", "order": "ASCENDING" },
+        { "fieldPath": "isActive", "order": "ASCENDING" },
+        { "fieldPath": "order", "order": "ASCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

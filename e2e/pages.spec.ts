@@ -59,6 +59,15 @@ test.describe("Pomodoro Page UI", () => {
   });
 });
 
+test.describe("Lists Page UI", () => {
+  test("lists page loads without errors", async ({ page }) => {
+    await page.goto("/lists");
+    await page.waitForTimeout(2000);
+    const url = page.url();
+    expect(url.includes("/lists") || url.includes("/login")).toBeTruthy();
+  });
+});
+
 test.describe("Schedule Page UI", () => {
   test("schedule page loads without errors", async ({ page }) => {
     await page.goto("/schedule");

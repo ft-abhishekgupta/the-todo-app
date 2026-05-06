@@ -5,6 +5,7 @@ export const siteConfig = {
     { label: "Dashboard", href: "/dashboard" },
     { label: "Tasks", href: "/tasks" },
     { label: "Projects", href: "/projects" },
+    { label: "Lists", href: "/lists" },
     { label: "Habits", href: "/habits" },
     { label: "Schedule", href: "/schedule" },
     { label: "Calendar", href: "/calendar" },

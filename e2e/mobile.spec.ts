@@ -19,6 +19,7 @@ test.describe("Mobile Responsiveness", () => {
       "/dashboard",
       "/tasks",
       "/projects",
+      "/lists",
       "/habits",
       "/schedule",
       "/calendar",

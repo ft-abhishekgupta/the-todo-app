@@ -64,5 +64,13 @@ service cloud.firestore {
       );
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
     }
+
+    // Lists collection (bucket lists, etc.)
+    match /lists/{listId} {
+      allow read, write: if isAuth() && (
+        resource == null || resource.data.userId == request.auth.uid
+      );
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+    }
   }
 }

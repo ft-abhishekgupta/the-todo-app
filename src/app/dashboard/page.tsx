@@ -36,6 +36,7 @@ import {
 import { Navbar } from "@/components/layout/navbar";
 import { SortableTaskItem } from "@/components/task/sortable-task-item";
 import { TaskEditModal } from "@/components/task/task-edit-modal";
+import { QuickAddToList } from "@/components/dashboard/quick-add-to-list";
 import { useTodayTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { useHabits, useHabitLogs, useHabitMutations } from "@/hooks/use-habits";
 import { usePomodoroSessions } from "@/hooks/use-pomodoro";
@@ -724,7 +725,10 @@ export default function DashboardPage() {
                 {activeTasks.length} active · {completedTasks.length} done · {completedHabits}/{habits.length} habits
               </p>
             </div>
-            <LiveClock />
+            <div className="flex items-center gap-2">
+              <QuickAddToList />
+              <LiveClock />
+            </div>
           </div>
 
           {/* Stats */}

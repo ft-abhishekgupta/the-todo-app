@@ -155,3 +155,28 @@ export interface PomodoroSettings {
   longBreakDuration: number;
   sessionsBeforeLongBreak: number;
 }
+
+// Lists (bucket lists, etc.)
+export interface ListItem {
+  id: string;
+  title: string;
+  completed: boolean;
+  notes?: string;
+  url?: string;
+  createdAt: Timestamp;
+}
+
+export interface UserList {
+  id: string;
+  userId: string;
+  name: string;
+  category: string; // dynamic, e.g. "Media", "Travel"
+  description?: string;
+  color: string;
+  icon?: string; // lucide icon name
+  items: ListItem[];
+  order: number;
+  isActive: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
