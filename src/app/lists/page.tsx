@@ -305,7 +305,7 @@ export default function ListsPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container mx-auto max-w-7xl px-3 sm:px-4 py-4 sm:py-6">
+      <main className="container mx-auto max-w-full px-3 sm:px-4 py-4 sm:py-6">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           {/* Header */}
           <div className="flex flex-wrap items-center gap-2">

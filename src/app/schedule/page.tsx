@@ -71,6 +71,20 @@ export default function SchedulePage() {
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const { isOpen: isDupOpen, onOpen: onDupOpen, onOpenChange: onDupOpenChange } = useDisclosure();
 
+  // Live current-minutes ticker for the "now" red line
+  const [nowMinutes, setNowMinutes] = useState(() => {
+    const n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  });
+  useEffect(() => {
+    const t = setInterval(() => {
+      const n = new Date();
+      setNowMinutes(n.getHours() * 60 + n.getMinutes());
+    }, 30_000);
+    return () => clearInterval(t);
+  }, []);
+  const isToday = selectedDate === format(new Date(), "yyyy-MM-dd");
+
   const [formTitle, setFormTitle] = useState("");
   const [formStartTime, setFormStartTime] = useState("09:00");
   const [formEndTime, setFormEndTime] = useState("10:00");
@@ -205,7 +219,7 @@ export default function SchedulePage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container mx-auto max-w-5xl px-3 sm:px-4 py-4 sm:py-6">
+      <main className="container mx-auto max-w-full px-3 sm:px-4 py-4 sm:py-6">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           {/* Header */}
           <div className="flex items-center justify-between">
@@ -290,6 +304,22 @@ export default function SchedulePage() {
                         style={{ top: `${(hour * 60 + min) * PX_PER_MIN}px` }}
                       />
                     ))
+                  )}
+
+                  {/* Current time marker (only when viewing today) */}
+                  {isToday && (
+                    <div
+                      className="absolute left-0 right-0 z-30 pointer-events-none"
+                      style={{ top: `${nowMinutes * PX_PER_MIN}px` }}
+                    >
+                      <div className="flex items-center">
+                        <span className="text-[10px] text-danger font-semibold w-12 px-1 bg-background tabular-nums">
+                          {minutesToTime(nowMinutes)}
+                        </span>
+                        <div className="flex-1 h-0.5 bg-danger" />
+                        <div className="absolute left-12 -translate-x-1/2 -translate-y-1/2 top-0 w-2 h-2 rounded-full bg-danger ring-2 ring-background" />
+                      </div>
+                    </div>
                   )}
 
                   {/* Drag preview */}

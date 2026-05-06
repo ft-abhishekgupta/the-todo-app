@@ -14,6 +14,7 @@ import {
   Select,
   SelectItem,
   useDisclosure,
+  Tooltip,
 } from "@nextui-org/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -712,7 +713,7 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className={`container mx-auto max-w-7xl px-3 sm:px-4 py-4 sm:py-6 transition-all ${completedOpen ? "mr-80" : ""}`}>
+      <main className={`container mx-auto max-w-full px-3 sm:px-4 py-4 sm:py-6 transition-all ${completedOpen ? "mr-80" : ""}`}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           {/* Header */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
@@ -827,29 +828,62 @@ export default function DashboardPage() {
               {scheduleEvents.length === 0 ? (
                 <p className="text-default-400 text-[10px] text-center py-1">No events</p>
               ) : (
-                <div className="flex flex-wrap gap-1">
-                  {scheduleEvents.map((event) => {
-                    const now = format(new Date(), "HH:mm");
+                (() => {
+                  const now = format(new Date(), "HH:mm");
+                  const sorted = [...scheduleEvents].sort((a, b) => a.startTime.localeCompare(b.startTime));
+                  // Find insertion index for the "now" marker
+                  let nowIdx = sorted.findIndex((e) => e.startTime > now);
+                  if (nowIdx === -1) nowIdx = sorted.length;
+                  const typeColors: Record<string, string> = {
+                    event: "bg-blue-500", work: "bg-primary", personal: "bg-green-500",
+                    growth: "bg-orange-500", task: "bg-green-500", habit: "bg-purple-500",
+                  };
+
+                  const renderEvent = (event: typeof sorted[number]) => {
                     const isPast = event.endTime <= now;
                     const isCurrent = event.startTime <= now && event.endTime > now;
-                    const typeColors: Record<string, string> = {
-                      event: "bg-blue-500", work: "bg-primary", personal: "bg-green-500",
-                      growth: "bg-orange-500", task: "bg-green-500", habit: "bg-purple-500",
-                    };
-                    return (
-                      <div
-                        key={event.id}
-                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] ${
-                          isCurrent ? "bg-primary/10 ring-1 ring-primary/30 font-medium" : isPast ? "opacity-40 line-through" : "bg-content2"
-                        }`}
-                      >
-                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${typeColors[event.type] || "bg-gray-400"}`} />
-                        <span className="text-default-500">{event.startTime}</span>
-                        <span className="truncate max-w-[80px]">{event.title}</span>
+                    const tooltipContent = (
+                      <div className="px-1 py-0.5 max-w-[220px]">
+                        <p className="text-xs font-semibold mb-0.5">{event.title}</p>
+                        <p className="text-[10px] text-default-300">
+                          {event.startTime} – {event.endTime} · {event.type}
+                        </p>
+                        {event.notes && (
+                          <p className="text-[10px] text-default-200 mt-1 whitespace-pre-wrap">{event.notes}</p>
+                        )}
                       </div>
                     );
-                  })}
-                </div>
+                    return (
+                      <Tooltip key={event.id} content={tooltipContent} placement="top" delay={150} closeDelay={0}>
+                        <div
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] cursor-pointer ${
+                            isCurrent ? "bg-primary/10 ring-1 ring-primary/30 font-medium" : isPast ? "opacity-40 line-through" : "bg-content2"
+                          }`}
+                          onClick={() => router.push("/schedule")}
+                        >
+                          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${typeColors[event.type] || "bg-gray-400"}`} />
+                          <span className="text-default-500">{event.startTime}</span>
+                          <span className="truncate max-w-[80px]">{event.title}</span>
+                        </div>
+                      </Tooltip>
+                    );
+                  };
+
+                  const nowMarker = (
+                    <div key="__now" className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-danger/10 ring-1 ring-danger/40">
+                      <div className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse shrink-0" />
+                      <span className="text-danger font-semibold tabular-nums">Now {now}</span>
+                    </div>
+                  );
+
+                  return (
+                    <div className="flex flex-wrap items-center gap-1">
+                      {sorted.slice(0, nowIdx).map(renderEvent)}
+                      {nowMarker}
+                      {sorted.slice(nowIdx).map(renderEvent)}
+                    </div>
+                  );
+                })()
               )}
             </CardBody>
           </Card>
