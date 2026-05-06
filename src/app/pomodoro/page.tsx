@@ -345,10 +345,10 @@ export default function PomodoroPage() {
                       <Timer size={12} className={session.isCompleted ? "text-success" : "text-warning"} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium">
+                      <div className="text-xs font-medium flex items-center">
                         {session.duration}min
                         {session.isCompleted && <Chip size="sm" color="success" variant="flat" className="ml-1 h-4 text-[9px]">Done</Chip>}
-                      </p>
+                      </div>
                       <p className="text-[10px] text-default-400 truncate">
                         {session.startedAt && format(session.startedAt.toDate(), "h:mm a")}
                         {session.notes && ` · ${session.notes.substring(0, 40)}`}
