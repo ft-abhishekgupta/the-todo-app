@@ -980,7 +980,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {/* Tasks */}
             <Card shadow="sm">
               <CardBody className="p-2 flex flex-row items-center gap-2">
@@ -1026,7 +1026,7 @@ export default function DashboardPage() {
           </div>
 
           {/* 4-Section Grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {TASK_TYPES.filter((t) => t.key !== "habit").map((type) => (
               <TaskSection
                 key={type.key}

@@ -10,7 +10,6 @@ import {
   NavbarBrand,
   NavbarItem,
   NavbarMenuItem,
-  Link,
   Button,
   Avatar,
   Dropdown,
@@ -112,6 +111,13 @@ export function Navbar() {
 
       <NavbarContent className="sm:hidden basis-1 pl-4" justify="end">
         <ThemeSwitch />
+        <Avatar
+          size="sm"
+          src={user.photoURL || undefined}
+          name={user.displayName?.charAt(0) || "U"}
+          className="cursor-pointer"
+          onClick={() => router.push("/settings")}
+        />
         <NavbarMenuToggle />
       </NavbarContent>
 
@@ -119,20 +125,31 @@ export function Navbar() {
         <div className="mx-4 mt-2 flex flex-col gap-2">
           {siteConfig.navItems.map((item, index) => (
             <NavbarMenuItem key={`${item.href}-${index}`}>
-              <Link
-                color={pathname === item.href ? "primary" : "foreground"}
+              <NextLink
+                className={clsx(
+                  "text-lg w-full block py-1",
+                  pathname === item.href ? "text-primary font-semibold" : "text-foreground"
+                )}
                 href={item.href}
-                size="lg"
-                onPress={() => setIsMenuOpen(false)}
+                onClick={() => setIsMenuOpen(false)}
               >
                 {item.label}
-              </Link>
+              </NextLink>
             </NavbarMenuItem>
           ))}
           <NavbarMenuItem>
-            <Link color="danger" size="lg" onPress={signOut}>
+            <NextLink
+              className="text-lg w-full block py-1"
+              href="/settings"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Settings
+            </NextLink>
+          </NavbarMenuItem>
+          <NavbarMenuItem>
+            <button className="text-lg text-danger w-full text-left py-1" onClick={signOut}>
               Sign Out
-            </Link>
+            </button>
           </NavbarMenuItem>
         </div>
       </NavbarMenu>
