@@ -82,7 +82,6 @@ const categoryOptions: { key: TaskCategory; label: string }[] = [
   { key: "work", label: "Work" },
   { key: "personal", label: "Personal" },
   { key: "growth", label: "Growth" },
-  { key: "habit", label: "Habit" },
 ];
 
 type ColumnKey = "past" | "yesterday" | "today" | "tomorrow" | "future";
