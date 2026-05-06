@@ -785,7 +785,7 @@ export default function DashboardPage() {
                 return (
                   <div className="relative">
                     {/* Track */}
-                    <div className="relative h-8 rounded-md bg-content2/60 overflow-hidden">
+                    <div className="relative h-5 rounded-md bg-content2/60 overflow-hidden">
                       {/* Hour grid lines */}
                       {tickHours.slice(1, -1).map((h) => {
                         const pct = ((h * 60 - START_MIN) / SPAN) * 100;
