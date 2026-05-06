@@ -20,7 +20,6 @@ import {
   Chip,
   Select,
   SelectItem,
-  Checkbox,
   Tabs,
   Tab,
 } from "@nextui-org/react";
@@ -38,11 +37,27 @@ import {
   FileText,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
+import { SortableTaskItem } from "@/components/task/sortable-task-item";
 import { useProjects, useProjectMutations } from "@/hooks/use-projects";
 import { useTasks, useTaskMutations } from "@/hooks/use-tasks";
-import { Project, ProjectType, ProjectStatus, Task } from "@/types";
+import { Project, ProjectType, ProjectStatus, Task, TaskPriority, Subtask } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { format, isPast } from "date-fns";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 
 const projectColors = [
   "#0072F5", "#17c964", "#f5a524", "#f31260",
@@ -66,7 +81,7 @@ export default function ProjectsPage() {
   const router = useRouter();
   const { projects, loading: projectsLoading } = useProjects();
   const { tasks } = useTasks();
-  const { addTask, updateTask } = useTaskMutations();
+  const { addTask, updateTask, reorderTasks } = useTaskMutations();
   const { addProject, updateProject, deleteProject } = useProjectMutations();
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const { isOpen: isEditOpen, onOpen: onEditOpen, onOpenChange: onEditOpenChange } = useDisclosure();
@@ -175,6 +190,69 @@ export default function ProjectsPage() {
 
   const handleToggleTask = async (task: Task) => {
     await updateTask(task.id, { status: task.status === "completed" ? "not_started" : "completed" });
+  };
+
+  const handleTaskToggleByIdAndCompleted = (id: string, completed: boolean) => {
+    updateTask(id, { status: completed ? "completed" : "not_started" });
+  };
+
+  const handleAddSubtaskToTask = (taskId: string, title: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const newSubtask: Subtask = { id: crypto.randomUUID(), title, completed: false };
+    updateTask(taskId, { subtasks: [...(task.subtasks || []), newSubtask] });
+  };
+
+  const handleToggleSubtask = (taskId: string, subtaskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const updated = (task.subtasks || []).map((s) =>
+      s.id === subtaskId ? { ...s, completed: !s.completed } : s
+    );
+    updateTask(taskId, { subtasks: updated });
+  };
+
+  const handleReorderSubtasks = (taskId: string, subtasks: Subtask[]) => {
+    updateTask(taskId, { subtasks });
+  };
+
+  const handleUpdateTaskTitle = (taskId: string, title: string) => {
+    updateTask(taskId, { title });
+  };
+
+  const handleTogglePriority = (taskId: string, currentPriority: TaskPriority) => {
+    const cycle: TaskPriority[] = ["low", "medium", "high"];
+    const idx = cycle.indexOf(currentPriority);
+    const next = cycle[(idx + 1) % cycle.length];
+    updateTask(taskId, { priority: next });
+  };
+
+  const handleOpenEditModal = (task: Task) => {
+    router.push(`/tasks?edit=${task.id}`);
+  };
+
+  const handleUpdateSubtaskTitle = (taskId: string, subtaskId: string, title: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const updated = (task.subtasks || []).map((s) =>
+      s.id === subtaskId ? { ...s, title } : s
+    );
+    updateTask(taskId, { subtasks: updated });
+  };
+
+  const taskSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
+
+  const handleProjectTaskDragEnd = (event: DragEndEvent, projectActiveTasks: Task[]) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = projectActiveTasks.findIndex((t) => t.id === active.id);
+    const newIdx = projectActiveTasks.findIndex((t) => t.id === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
+    const newOrder = arrayMove(projectActiveTasks, oldIdx, newIdx);
+    reorderTasks(newOrder.map((t) => t.id));
   };
 
   const handleQuickAddTask = async (projectId: string, projectType: ProjectType) => {
@@ -301,25 +379,30 @@ export default function ProjectsPage() {
                       <CardHeader className="pb-1 px-3 pt-2">
                         <span className="text-sm font-semibold">Active ({activeTasks.length})</span>
                       </CardHeader>
-                      <CardBody className="pt-1 px-3 pb-2 space-y-1">
-                        {activeTasks.map((task) => (
-                          <div key={task.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-content2 group">
-                            <Checkbox
-                              size="sm"
-                              isSelected={task.status === "completed"}
-                              onValueChange={() => handleToggleTask(task)}
-                            />
-                            <span className="text-sm flex-1 truncate">{task.title}</span>
-                            <div className={`w-2 h-2 rounded-full ${
-                              task.priority === "high" ? "bg-red-500" : task.priority === "medium" ? "bg-blue-500" : "bg-orange-400"
-                            }`} />
-                            {task.deadline && (
-                              <span className="text-[10px] text-default-400">
-                                {format(task.deadline.toDate(), "MMM d")}
-                              </span>
-                            )}
-                          </div>
-                        ))}
+                      <CardBody className="pt-1 px-3 pb-2">
+                        <DndContext
+                          sensors={taskSensors}
+                          collisionDetection={closestCenter}
+                          modifiers={[restrictToVerticalAxis]}
+                          onDragEnd={(e) => handleProjectTaskDragEnd(e, activeTasks)}
+                        >
+                          <SortableContext items={activeTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                            {activeTasks.map((task) => (
+                              <SortableTaskItem
+                                key={task.id}
+                                task={task}
+                                onToggle={handleTaskToggleByIdAndCompleted}
+                                onAddSubtask={handleAddSubtaskToTask}
+                                onToggleSubtask={handleToggleSubtask}
+                                onReorderSubtasks={handleReorderSubtasks}
+                                onUpdateTitle={handleUpdateTaskTitle}
+                                onTogglePriority={handleTogglePriority}
+                                onOpenEditModal={handleOpenEditModal}
+                                onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
+                              />
+                            ))}
+                          </SortableContext>
+                        </DndContext>
                       </CardBody>
                     </Card>
                   )}
@@ -330,18 +413,29 @@ export default function ProjectsPage() {
                       <CardHeader className="pb-1 px-3 pt-2">
                         <span className="text-sm font-semibold text-success">Completed ({completedTasks.length})</span>
                       </CardHeader>
-                      <CardBody className="pt-1 px-3 pb-2 space-y-1">
-                        {completedTasks.map((task) => (
-                          <div key={task.id} className="flex items-center gap-2 p-2 rounded-lg opacity-60">
-                            <Checkbox
-                              size="sm"
-                              isSelected={true}
-                              onValueChange={() => handleToggleTask(task)}
-                              lineThrough
-                            />
-                            <span className="text-sm flex-1 truncate line-through text-default-400">{task.title}</span>
-                          </div>
-                        ))}
+                      <CardBody className="pt-1 px-3 pb-2">
+                        <DndContext
+                          sensors={taskSensors}
+                          collisionDetection={closestCenter}
+                          modifiers={[restrictToVerticalAxis]}
+                        >
+                          <SortableContext items={completedTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                            {completedTasks.map((task) => (
+                              <SortableTaskItem
+                                key={task.id}
+                                task={task}
+                                onToggle={handleTaskToggleByIdAndCompleted}
+                                onAddSubtask={handleAddSubtaskToTask}
+                                onToggleSubtask={handleToggleSubtask}
+                                onReorderSubtasks={handleReorderSubtasks}
+                                onUpdateTitle={handleUpdateTaskTitle}
+                                onTogglePriority={handleTogglePriority}
+                                onOpenEditModal={handleOpenEditModal}
+                                onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
+                              />
+                            ))}
+                          </SortableContext>
+                        </DndContext>
                       </CardBody>
                     </Card>
                   )}
