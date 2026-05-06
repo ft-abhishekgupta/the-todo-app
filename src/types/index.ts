@@ -116,7 +116,22 @@ export interface Project {
   updatedAt: Timestamp;
 }
 
-// User Types
+// Schedule Types
+export interface ScheduleEvent {
+  id: string;
+  userId: string;
+  date: string; // YYYY-MM-DD
+  title: string;
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+  type: "meeting" | "task" | "habit" | "block" | "break";
+  color?: string;
+  linkedTaskId?: string;
+  linkedHabitId?: string;
+  notes?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
 export interface UserProfile {
   id: string;
   email: string;

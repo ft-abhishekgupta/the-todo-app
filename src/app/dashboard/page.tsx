@@ -30,11 +30,13 @@ import {
   X,
   ChevronRight,
   ChevronDown,
+  Calendar,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { useTodayTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { useHabits, useHabitLogs, useHabitMutations } from "@/hooks/use-habits";
 import { usePomodoroSessions } from "@/hooks/use-pomodoro";
+import { useSchedule } from "@/hooks/use-schedule";
 import { format } from "date-fns";
 import { Timestamp } from "firebase/firestore";
 import {
@@ -472,6 +474,19 @@ function TaskSection({
             <span className="text-[10px] font-medium text-primary uppercase">Focus</span>
           </div>
           <p className="text-sm font-medium mt-0.5 truncate">{focusTask.title}</p>
+          {focusTask.subtasks && focusTask.subtasks.length > 0 && (() => {
+            const focusSub = focusTask.subtasks.find((s) => !s.completed);
+            if (!focusSub) return null;
+            return (
+              <div className="flex items-center gap-1.5 mt-1.5 pl-2 border-l-2 border-primary/30">
+                <div
+                  className="w-3 h-3 rounded-sm border border-default-300 cursor-pointer hover:border-primary shrink-0"
+                  onClick={() => onToggleSubtask(focusTask.id, focusSub.id)}
+                />
+                <span className="text-xs text-default-600 truncate">{focusSub.title}</span>
+              </div>
+            );
+          })()}
         </div>
       )}
 
@@ -828,6 +843,8 @@ export default function DashboardPage() {
   const { habits } = useHabits();
   const { logs } = useHabitLogs(undefined, 1);
   const { sessions } = usePomodoroSessions();
+  const todayDate = format(new Date(), "yyyy-MM-dd");
+  const { events: scheduleEvents } = useSchedule(todayDate);
   const { addTask, updateTask, reorderTasks } = useTaskMutations();
   const { toggleHabitLog, updateHabitCount, reorderHabits } = useHabitMutations();
   const [completedOpen, setCompletedOpen] = useState(false);
@@ -851,7 +868,6 @@ export default function DashboardPage() {
     );
   }
 
-  const todayDate = format(new Date(), "yyyy-MM-dd");
   const activeTasks = todayTasks.filter((t) => t.status !== "completed");
   const completedTasks = todayTasks.filter((t) => t.status === "completed");
   const completedHabits = logs.filter((l) => l.date === todayDate && l.completed).length;
@@ -964,23 +980,79 @@ export default function DashboardPage() {
           </div>
 
           {/* Stats */}
-          <div className="grid grid-cols-4 gap-2">
-            {[
-              { icon: Target, color: "text-primary", label: "Tasks", value: `${completedTasks.length}/${todayTasks.length}` },
-              { icon: Flame, color: "text-success", label: "Habits", value: `${completedHabits}/${habits.length}` },
-              { icon: Timer, color: "text-warning", label: "Pomodoro", value: `${completedPomodoros}` },
-              { icon: Clock, color: "text-secondary", label: "Focus", value: `${completedPomodoros * 25}m` },
-            ].map((stat) => (
-              <Card key={stat.label} shadow="sm">
-                <CardBody className="flex flex-row items-center gap-2 p-2.5">
-                  <stat.icon size={14} className={`${stat.color} shrink-0`} />
-                  <div className="min-w-0">
-                    <p className="text-[10px] text-default-500">{stat.label}</p>
-                    <p className="text-sm font-bold">{stat.value}</p>
-                  </div>
-                </CardBody>
-              </Card>
-            ))}
+          <div className="grid grid-cols-3 gap-2">
+            {/* Tasks badge with 3 progress bars */}
+            <Card shadow="sm">
+              <CardBody className="p-2.5">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Target size={14} className="text-primary shrink-0" />
+                  <span className="text-[10px] text-default-500">Tasks</span>
+                  <span className="text-sm font-bold ml-auto">{completedTasks.length}/{todayTasks.length}</span>
+                </div>
+                <div className="space-y-1">
+                  {([
+                    { key: "work" as TaskType, label: "W", color: "primary" },
+                    { key: "personal" as TaskType, label: "P", color: "success" },
+                    { key: "growth" as TaskType, label: "G", color: "warning" },
+                  ] as const).map((cat) => {
+                    const total = todayTasks.filter((t) => t.category === cat.key).length;
+                    const done = completedTasks.filter((t) => t.category === cat.key).length;
+                    return (
+                      <div key={cat.key} className="flex items-center gap-1.5">
+                        <span className="text-[9px] w-3 text-default-400">{cat.label}</span>
+                        <Progress size="sm" value={total > 0 ? (done / total) * 100 : 0} color={cat.color as any} className="flex-1" />
+                        <span className="text-[9px] text-default-400 w-6 text-right">{done}/{total}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardBody>
+            </Card>
+
+            {/* Habits badge with category progress */}
+            <Card shadow="sm">
+              <CardBody className="p-2.5">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Flame size={14} className="text-success shrink-0" />
+                  <span className="text-[10px] text-default-500">Habits</span>
+                  <span className="text-sm font-bold ml-auto">{completedHabits}/{habits.length}</span>
+                </div>
+                <div className="space-y-1">
+                  {([
+                    { key: "morning" as const, label: "AM", color: "warning" },
+                    { key: "all_day" as const, label: "Day", color: "primary" },
+                    { key: "night" as const, label: "PM", color: "secondary" },
+                  ]).map((cat) => {
+                    const catHabits = habits.filter((h) => h.category === cat.key);
+                    const catDone = catHabits.filter((h) => logs.some((l) => l.habitId === h.id && l.date === todayDate && l.completed)).length;
+                    return (
+                      <div key={cat.key} className="flex items-center gap-1.5">
+                        <span className="text-[9px] w-5 text-default-400">{cat.label}</span>
+                        <Progress size="sm" value={catHabits.length > 0 ? (catDone / catHabits.length) * 100 : 0} color={cat.color as any} className="flex-1" />
+                        <span className="text-[9px] text-default-400 w-6 text-right">{catDone}/{catHabits.length}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardBody>
+            </Card>
+
+            {/* Pomodoro badge with start button */}
+            <Card shadow="sm">
+              <CardBody className="p-2.5">
+                <div className="flex items-center gap-2 mb-1.5">
+                  <Timer size={14} className="text-warning shrink-0" />
+                  <span className="text-[10px] text-default-500">Pomodoro</span>
+                  <span className="text-sm font-bold ml-auto">{completedPomodoros}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-default-500">{completedPomodoros * 25}m focused</span>
+                  <Button color="warning" variant="flat" size="sm" className="h-6 min-w-0 px-2 text-[10px]" onPress={() => router.push("/pomodoro")}>
+                    Start
+                  </Button>
+                </div>
+              </CardBody>
+            </Card>
           </div>
 
           {/* 4-Section Grid */}
@@ -1018,16 +1090,55 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Pomodoro */}
+          {/* Today's Schedule */}
           <Card shadow="sm">
-            <CardBody className="flex flex-row items-center justify-between p-3">
+            <CardHeader className="flex justify-between items-center px-3 py-2.5">
               <div className="flex items-center gap-2">
-                <Timer size={16} className="text-warning" />
-                <span className="text-sm font-medium">{completedPomodoros} pomodoros · {completedPomodoros * 25}m focused</span>
+                <Calendar size={16} className="text-secondary" />
+                <span className="font-semibold text-sm">Today&apos;s Schedule</span>
+                <Chip size="sm" variant="flat" className="h-5">{scheduleEvents.length}</Chip>
               </div>
-              <Button color="warning" variant="flat" size="sm" onPress={() => router.push("/pomodoro")}>
-                Start Timer
+              <Button size="sm" variant="light" onPress={() => router.push("/schedule")}>
+                View All
               </Button>
+            </CardHeader>
+            <CardBody className="pt-0 px-3 pb-3">
+              {scheduleEvents.length === 0 ? (
+                <p className="text-default-400 text-xs text-center py-3">No events scheduled</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {scheduleEvents.map((event) => {
+                    const now = format(new Date(), "HH:mm");
+                    const isPast = event.endTime <= now;
+                    const isCurrent = event.startTime <= now && event.endTime > now;
+                    const typeColors: Record<string, string> = {
+                      meeting: "bg-blue-500",
+                      task: "bg-green-500",
+                      habit: "bg-purple-500",
+                      block: "bg-orange-500",
+                      break: "bg-gray-400",
+                    };
+                    return (
+                      <div
+                        key={event.id}
+                        className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${
+                          isCurrent ? "bg-primary/10 border border-primary/20" : isPast ? "opacity-50" : "hover:bg-content2"
+                        }`}
+                      >
+                        <div className={`w-2 h-2 rounded-full shrink-0 ${typeColors[event.type] || "bg-gray-400"}`} />
+                        <span className="text-xs text-default-500 w-20 shrink-0">
+                          {event.startTime} - {event.endTime}
+                        </span>
+                        <span className={`text-sm flex-1 truncate ${isPast ? "line-through text-default-400" : "font-medium"}`}>
+                          {event.title}
+                        </span>
+                        {isCurrent && <Chip size="sm" color="primary" variant="flat" className="h-4 text-[9px]">Now</Chip>}
+                        {isPast && <CheckCircle2 size={12} className="text-success shrink-0" />}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </CardBody>
           </Card>
         </motion.div>
