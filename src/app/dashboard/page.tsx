@@ -1062,49 +1062,37 @@ export default function DashboardPage() {
 
           {/* Today's Schedule */}
           <Card shadow="sm">
-            <CardHeader className="flex justify-between items-center px-3 py-2.5">
-              <div className="flex items-center gap-2">
-                <Calendar size={16} className="text-secondary" />
-                <span className="font-semibold text-sm">Today&apos;s Schedule</span>
-                <Chip size="sm" variant="flat" className="h-5">{scheduleEvents.length}</Chip>
+            <CardBody className="p-2.5">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Calendar size={12} className="text-secondary shrink-0" />
+                <span className="text-xs font-semibold">Schedule</span>
+                <span className="text-[10px] text-default-400">{scheduleEvents.length} events</span>
+                <Button size="sm" variant="light" className="h-5 min-w-0 px-1.5 text-[10px] ml-auto" onPress={() => router.push("/schedule")}>
+                  View
+                </Button>
               </div>
-              <Button size="sm" variant="light" onPress={() => router.push("/schedule")}>
-                View All
-              </Button>
-            </CardHeader>
-            <CardBody className="pt-0 px-3 pb-3">
               {scheduleEvents.length === 0 ? (
-                <p className="text-default-400 text-xs text-center py-3">No events scheduled</p>
+                <p className="text-default-400 text-[10px] text-center py-1">No events</p>
               ) : (
-                <div className="space-y-1.5">
+                <div className="flex flex-wrap gap-1">
                   {scheduleEvents.map((event) => {
                     const now = format(new Date(), "HH:mm");
                     const isPast = event.endTime <= now;
                     const isCurrent = event.startTime <= now && event.endTime > now;
                     const typeColors: Record<string, string> = {
-                      event: "bg-blue-500",
-                      work: "bg-primary",
-                      personal: "bg-green-500",
-                      growth: "bg-orange-500",
-                      task: "bg-green-500",
-                      habit: "bg-purple-500",
+                      event: "bg-blue-500", work: "bg-primary", personal: "bg-green-500",
+                      growth: "bg-orange-500", task: "bg-green-500", habit: "bg-purple-500",
                     };
                     return (
                       <div
                         key={event.id}
-                        className={`flex items-center gap-2 p-2 rounded-lg transition-colors ${
-                          isCurrent ? "bg-primary/10 border border-primary/20" : isPast ? "opacity-50" : "hover:bg-content2"
+                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] ${
+                          isCurrent ? "bg-primary/10 ring-1 ring-primary/30 font-medium" : isPast ? "opacity-40 line-through" : "bg-content2"
                         }`}
                       >
-                        <div className={`w-2 h-2 rounded-full shrink-0 ${typeColors[event.type] || "bg-gray-400"}`} />
-                        <span className="text-xs text-default-500 w-20 shrink-0">
-                          {event.startTime} - {event.endTime}
-                        </span>
-                        <span className={`text-sm flex-1 truncate ${isPast ? "line-through text-default-400" : "font-medium"}`}>
-                          {event.title}
-                        </span>
-                        {isCurrent && <Chip size="sm" color="primary" variant="flat" className="h-4 text-[9px]">Now</Chip>}
-                        {isPast && <CheckCircle2 size={12} className="text-success shrink-0" />}
+                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${typeColors[event.type] || "bg-gray-400"}`} />
+                        <span className="text-default-500">{event.startTime}</span>
+                        <span className="truncate max-w-[80px]">{event.title}</span>
                       </div>
                     );
                   })}
