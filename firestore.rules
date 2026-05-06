@@ -56,5 +56,13 @@ service cloud.firestore {
       );
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
     }
+
+    // Schedule Events collection
+    match /scheduleEvents/{eventId} {
+      allow read, write: if isAuth() && (
+        resource == null || resource.data.userId == request.auth.uid
+      );
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+    }
   }
 }
