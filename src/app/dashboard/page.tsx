@@ -784,7 +784,7 @@ export default function DashboardPage() {
           </div>
 
           {/* 4-Section Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {TASK_TYPES.filter((t) => t.key !== "habit").map((type) => (
               <TaskSection
                 key={type.key}
