@@ -276,7 +276,7 @@ function SortableTaskItem({
       {...attributes}
       {...listeners}
       className={`rounded-lg hover:bg-content2/50 transition-colors mb-1 cursor-grab active:cursor-grabbing touch-none ${isFocused ? "bg-primary/5 border border-primary/20" : ""}`}
-      onDoubleClick={() => onOpenEditModal(task)}
+      onContextMenu={(e) => { e.preventDefault(); onOpenEditModal(task); }}
     >
       {/* Main task row */}
       <div className="flex items-center gap-2 p-2 group">
@@ -523,22 +523,74 @@ function TaskSection({
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => onDragEnd(e, type.key)} modifiers={[restrictToVerticalAxis]}>
             <SortableContext items={activeTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              {activeTasks.map((task) => (
-                <SortableTaskItem
-                  key={task.id}
-                  task={task}
-                  onToggle={onToggle}
-                  onSetFocus={onSetFocus}
-                  onAddSubtask={onAddSubtask}
-                  onToggleSubtask={onToggleSubtask}
-                  onReorderSubtasks={onReorderSubtasks}
-                  onUpdateTitle={onUpdateTitle}
-                  onTogglePriority={onTogglePriority}
-                  onOpenEditModal={onOpenEditModal}
-                  onUpdateSubtaskTitle={onUpdateSubtaskTitle}
-                  isFocused={task.id === focusTask?.id}
-                />
-              ))}
+              {type.subtypes.length > 0 ? (
+                <>
+                  {type.subtypes.map((sub) => {
+                    const groupTasks = activeTasks.filter((t) => t.subtype === sub.key);
+                    if (groupTasks.length === 0) return null;
+                    return (
+                      <div key={sub.key} className="mb-1.5">
+                        <p className="text-[10px] font-semibold text-default-400 uppercase px-2 py-0.5">{sub.label}</p>
+                        {groupTasks.map((task) => (
+                          <SortableTaskItem
+                            key={task.id}
+                            task={task}
+                            onToggle={onToggle}
+                            onSetFocus={onSetFocus}
+                            onAddSubtask={onAddSubtask}
+                            onToggleSubtask={onToggleSubtask}
+                            onReorderSubtasks={onReorderSubtasks}
+                            onUpdateTitle={onUpdateTitle}
+                            onTogglePriority={onTogglePriority}
+                            onOpenEditModal={onOpenEditModal}
+                            onUpdateSubtaskTitle={onUpdateSubtaskTitle}
+                            isFocused={task.id === focusTask?.id}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })}
+                  {/* Tasks without subtype */}
+                  {activeTasks.filter((t) => !t.subtype || !type.subtypes.some((s) => s.key === t.subtype)).length > 0 && (
+                    <div className="mb-1.5">
+                      <p className="text-[10px] font-semibold text-default-400 uppercase px-2 py-0.5">Other</p>
+                      {activeTasks.filter((t) => !t.subtype || !type.subtypes.some((s) => s.key === t.subtype)).map((task) => (
+                        <SortableTaskItem
+                          key={task.id}
+                          task={task}
+                          onToggle={onToggle}
+                          onSetFocus={onSetFocus}
+                          onAddSubtask={onAddSubtask}
+                          onToggleSubtask={onToggleSubtask}
+                          onReorderSubtasks={onReorderSubtasks}
+                          onUpdateTitle={onUpdateTitle}
+                          onTogglePriority={onTogglePriority}
+                          onOpenEditModal={onOpenEditModal}
+                          onUpdateSubtaskTitle={onUpdateSubtaskTitle}
+                          isFocused={task.id === focusTask?.id}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                activeTasks.map((task) => (
+                  <SortableTaskItem
+                    key={task.id}
+                    task={task}
+                    onToggle={onToggle}
+                    onSetFocus={onSetFocus}
+                    onAddSubtask={onAddSubtask}
+                    onToggleSubtask={onToggleSubtask}
+                    onReorderSubtasks={onReorderSubtasks}
+                    onUpdateTitle={onUpdateTitle}
+                    onTogglePriority={onTogglePriority}
+                    onOpenEditModal={onOpenEditModal}
+                    onUpdateSubtaskTitle={onUpdateSubtaskTitle}
+                    isFocused={task.id === focusTask?.id}
+                  />
+                ))
+              )}
             </SortableContext>
           </DndContext>
         )}
@@ -551,22 +603,28 @@ function HabitSection({
   habits,
   logs,
   todayDate,
+  focusHabitId,
   onToggle,
   onIncrement,
+  onSetFocusHabit,
   onDragEnd,
   sensors,
 }: {
   habits: Habit[];
   logs: any[];
   todayDate: string;
+  focusHabitId?: string;
   onToggle: (habitId: string, completed: boolean) => void;
   onIncrement: (habitId: string, count: number, target: number) => void;
+  onSetFocusHabit: (id: string) => void;
   onDragEnd: (event: DragEndEvent) => void;
   sensors: ReturnType<typeof useSensors>;
 }) {
   const completedCount = habits.filter((h) =>
     logs.some((l: any) => l.habitId === h.id && l.date === todayDate && l.completed)
   ).length;
+
+  const focusHabit = habits.find((h) => h.id === focusHabitId) || habits[0];
 
   return (
     <Card shadow="sm" className="h-fit">
@@ -577,6 +635,17 @@ function HabitSection({
           <Chip size="sm" variant="flat" className="h-5">{completedCount}/{habits.length}</Chip>
         </div>
       </CardHeader>
+
+      {focusHabit && (
+        <div className="mx-3 mb-2 p-2 rounded-lg bg-secondary/5 border border-secondary/20">
+          <div className="flex items-center gap-1.5">
+            <Star size={10} className="text-secondary fill-secondary" />
+            <span className="text-[10px] font-medium text-secondary uppercase">Focus Habit</span>
+          </div>
+          <p className="text-sm font-medium mt-0.5 truncate">{focusHabit.title}</p>
+        </div>
+      )}
+
       <CardBody className="pt-0 px-2 pb-2 max-h-72 overflow-y-auto">
         {habits.length === 0 ? (
           <p className="text-default-400 text-xs text-center py-4">No habits</p>
@@ -593,8 +662,10 @@ function HabitSection({
                     habit={habit}
                     isCompleted={isCompleted}
                     currentCount={currentCount}
+                    isFocused={habit.id === focusHabit?.id}
                     onToggle={() => onToggle(habit.id, !isCompleted)}
                     onIncrement={() => onIncrement(habit.id, currentCount + 1, habit.targetCount || 1)}
+                    onSetFocus={() => onSetFocusHabit(habit.id)}
                   />
                 );
               })}
@@ -610,23 +681,30 @@ function SortableHabitRow({
   habit,
   isCompleted,
   currentCount,
+  isFocused,
   onToggle,
   onIncrement,
+  onSetFocus,
 }: {
   habit: Habit;
   isCompleted: boolean;
   currentCount: number;
+  isFocused: boolean;
   onToggle: () => void;
   onIncrement: () => void;
+  onSetFocus: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: habit.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
   const isCounter = habit.type === "counter";
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-center gap-2 p-2 rounded-lg hover:bg-content2 transition-colors group">
+    <div ref={setNodeRef} style={style} className={`flex items-center gap-2 p-2 rounded-lg hover:bg-content2 transition-colors group ${isFocused ? "bg-secondary/5" : ""}`}>
       <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none shrink-0">
         <GripVertical size={14} className="text-default-400" />
+      </button>
+      <button onClick={onSetFocus} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+        <Star size={12} className={isFocused ? "text-secondary fill-secondary" : "text-default-300"} />
       </button>
       {isCounter ? (
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -754,6 +832,7 @@ export default function DashboardPage() {
   const { toggleHabitLog, updateHabitCount, reorderHabits } = useHabitMutations();
   const [completedOpen, setCompletedOpen] = useState(false);
   const [focusTasks, setFocusTasks] = useState<Record<TaskType, string>>({} as any);
+  const [focusHabitId, setFocusHabitId] = useState<string>("");
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -930,8 +1009,10 @@ export default function DashboardPage() {
               habits={habits}
               logs={logs}
               todayDate={todayDate}
+              focusHabitId={focusHabitId}
               onToggle={(habitId, completed) => toggleHabitLog(habitId, todayDate, completed)}
               onIncrement={(habitId, count, target) => updateHabitCount(habitId, todayDate, count, target)}
+              onSetFocusHabit={(id) => setFocusHabitId(id)}
               onDragEnd={handleHabitDragEnd}
               sensors={sensors}
             />

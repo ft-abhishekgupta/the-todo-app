@@ -35,7 +35,7 @@ import {
 import { Navbar } from "@/components/layout/navbar";
 import { useTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { useProjects } from "@/hooks/use-projects";
-import { Task, TaskStatus, TaskPriority, TaskCategory, Subtask } from "@/types";
+import { Task, TaskStatus, TaskPriority, TaskCategory, TaskSubtype, Subtask } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { format, isToday, isYesterday, isTomorrow, isBefore, startOfDay, addDays } from "date-fns";
 import {
@@ -75,6 +75,26 @@ const categoryOptions: { key: TaskCategory; label: string }[] = [
   { key: "personal", label: "Personal" },
   { key: "growth", label: "Growth" },
 ];
+
+const subtypeOptions: Record<TaskCategory, { key: TaskSubtype; label: string }[]> = {
+  work: [
+    { key: "project_task", label: "Project Task" },
+    { key: "general_task", label: "General Task" },
+    { key: "chores", label: "Chores" },
+  ],
+  personal: [
+    { key: "general_task", label: "General Task" },
+    { key: "project_task", label: "Project Task" },
+    { key: "chores", label: "Chores" },
+    { key: "social", label: "Social" },
+  ],
+  growth: [
+    { key: "professional_learning", label: "Professional Learning" },
+    { key: "personal_learning", label: "Personal Learning" },
+    { key: "improvement", label: "Improvement" },
+  ],
+  habit: [],
+};
 
 type ColumnKey = "past" | "yesterday" | "today" | "tomorrow" | "future";
 
@@ -384,6 +404,7 @@ export default function TasksPage() {
   const [formStatus, setFormStatus] = useState<TaskStatus>("not_started");
   const [formPriority, setFormPriority] = useState<TaskPriority>("medium");
   const [formCategory, setFormCategory] = useState<TaskCategory>("work");
+  const [formSubtype, setFormSubtype] = useState<TaskSubtype | "">("");
   const [formDeadline, setFormDeadline] = useState("");
   const [formScheduledDate, setFormScheduledDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [formTags, setFormTags] = useState("");
@@ -450,6 +471,7 @@ export default function TasksPage() {
     setFormStatus(task.status);
     setFormPriority(task.priority);
     setFormCategory(task.category);
+    setFormSubtype(task.subtype || "");
     setFormDeadline(task.deadline ? format(task.deadline.toDate(), "yyyy-MM-dd") : "");
     setFormScheduledDate(task.scheduledDate ? format(task.scheduledDate.toDate(), "yyyy-MM-dd") : "");
     setFormTags(task.tags.join(", "));
@@ -465,6 +487,7 @@ export default function TasksPage() {
     setFormStatus("not_started");
     setFormPriority("medium");
     setFormCategory("work");
+    setFormSubtype("");
     setFormDeadline("");
     setFormScheduledDate(format(new Date(), "yyyy-MM-dd"));
     setFormTags("");
@@ -481,6 +504,7 @@ export default function TasksPage() {
       status: formStatus,
       priority: formPriority,
       category: formCategory,
+      subtype: formSubtype || undefined,
       deadline: formDeadline ? Timestamp.fromDate(new Date(formDeadline)) : undefined,
       scheduledDate: formScheduledDate ? Timestamp.fromDate(new Date(formScheduledDate)) : undefined,
       tags: formTags.split(",").map((t) => t.trim()).filter(Boolean),
@@ -774,9 +798,14 @@ export default function TasksPage() {
                     </Select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <Select label="Category" variant="bordered" size="sm" selectedKeys={[formCategory]} onSelectionChange={(k) => setFormCategory(Array.from(k)[0] as TaskCategory)}>
+                    <Select label="Category" variant="bordered" size="sm" selectedKeys={[formCategory]} onSelectionChange={(k) => { setFormCategory(Array.from(k)[0] as TaskCategory); setFormSubtype(""); }}>
                       {categoryOptions.map((c) => <SelectItem key={c.key}>{c.label}</SelectItem>)}
                     </Select>
+                    {subtypeOptions[formCategory]?.length > 0 && (
+                      <Select label="Subcategory" variant="bordered" size="sm" selectedKeys={formSubtype ? [formSubtype] : []} onSelectionChange={(k) => setFormSubtype(Array.from(k)[0] as TaskSubtype)}>
+                        {subtypeOptions[formCategory].map((s) => <SelectItem key={s.key}>{s.label}</SelectItem>)}
+                      </Select>
+                    )}
                     {projects.length > 0 && (
                       <Select label="Project" variant="bordered" size="sm" selectedKeys={formProjectId ? [formProjectId] : []} onSelectionChange={(k) => setFormProjectId(Array.from(k)[0] as string)}>
                         {projects.map((p) => <SelectItem key={p.id}>{p.name}</SelectItem>)}
