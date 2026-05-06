@@ -234,9 +234,9 @@ function SortableTaskItem({
   };
 
   const priorityDotColors: Record<TaskPriority, string> = {
-    low: "bg-default-400",
-    medium: "bg-primary",
-    high: "bg-warning",
+    low: "bg-orange-400",
+    medium: "bg-blue-500",
+    high: "bg-red-500",
   };
 
   return (

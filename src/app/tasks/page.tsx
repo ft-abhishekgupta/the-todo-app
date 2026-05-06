@@ -213,9 +213,9 @@ function SortableTask({
   };
 
   const priorityDotColors: Record<TaskPriority, string> = {
-    low: "bg-default-400",
-    medium: "bg-primary",
-    high: "bg-warning",
+    low: "bg-orange-400",
+    medium: "bg-blue-500",
+    high: "bg-red-500",
   };
 
   return (
@@ -513,9 +513,9 @@ export default function TasksPage() {
     if (!quickAddTitle.trim()) return;
     await addTask({
       title: quickAddTitle.trim(),
-      status: "not_started",
-      priority: "medium",
-      category: "work",
+      status: filterStatus !== "all" ? filterStatus : "not_started",
+      priority: filterPriority !== "all" ? filterPriority : "medium",
+      category: filterCategory !== "all" ? filterCategory : "work",
       tags: [],
       subtasks: [],
       scheduledDate: Timestamp.fromDate(new Date()),
