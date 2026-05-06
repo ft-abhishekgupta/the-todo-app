@@ -35,6 +35,41 @@ export function Navbar() {
   const fullscreen = useUIStore((s) => s.fullscreen);
   const toggleFullscreen = useUIStore((s) => s.toggleFullscreen);
 
+  // On mobile, also request/exit the browser's Fullscreen API so the address bar
+  // and OS chrome get hidden too. Desktop keeps the lightweight header-hide only.
+  const handleToggleFullscreen = () => {
+    const isMobile =
+      typeof window !== "undefined" &&
+      window.matchMedia("(max-width: 640px)").matches;
+    const willEnterFullscreen = !fullscreen;
+    toggleFullscreen();
+    if (typeof document === "undefined") return;
+    try {
+      if (isMobile) {
+        if (willEnterFullscreen && !document.fullscreenElement) {
+          document.documentElement.requestFullscreen?.().catch(() => {});
+        } else if (!willEnterFullscreen && document.fullscreenElement) {
+          document.exitFullscreen?.().catch(() => {});
+        }
+      }
+    } catch {
+      /* noop — fullscreen unsupported or denied */
+    }
+  };
+
+  // Keep store in sync if the user exits browser fullscreen via the OS gesture
+  useEffect(() => {
+    const onFsChange = () => {
+      if (!document.fullscreenElement && fullscreen) {
+        // Only auto-exit our soft fullscreen if it was triggered on mobile
+        const isMobile = window.matchMedia("(max-width: 640px)").matches;
+        if (isMobile) useUIStore.getState().setFullscreen(false);
+      }
+    };
+    document.addEventListener("fullscreenchange", onFsChange);
+    return () => document.removeEventListener("fullscreenchange", onFsChange);
+  }, [fullscreen]);
+
   if (!user) return null;
 
   // Fullscreen mode: just show a small floating exit button in the top-right.
@@ -46,7 +81,7 @@ export function Navbar() {
             isIconOnly
             size="sm"
             variant="flat"
-            onPress={toggleFullscreen}
+            onPress={handleToggleFullscreen}
             aria-label="Exit fullscreen"
           >
             <Minimize2 size={16} />
@@ -101,7 +136,7 @@ export function Navbar() {
               isIconOnly
               size="sm"
               variant="light"
-              onPress={toggleFullscreen}
+              onPress={handleToggleFullscreen}
               aria-label="Toggle fullscreen"
             >
               <Maximize2 size={16} />
@@ -148,7 +183,7 @@ export function Navbar() {
 
       <NavbarContent className="sm:hidden basis-1 pl-4" justify="end">
         <QuickAddToList iconOnly />
-        <Button isIconOnly size="sm" variant="light" onPress={toggleFullscreen} aria-label="Toggle fullscreen">
+        <Button isIconOnly size="sm" variant="light" onPress={handleToggleFullscreen} aria-label="Toggle fullscreen">
           <Maximize2 size={16} />
         </Button>
         <ThemeSwitch />
