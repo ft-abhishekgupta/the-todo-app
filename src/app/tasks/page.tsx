@@ -141,11 +141,13 @@ function SortableSubtaskRow({
   subtask,
   onToggle,
   onUpdateTitle,
+  onDelete,
 }: {
   subtask: Subtask;
   onToggle: () => void;
   onUpdateTitle: (title: string) => void;
-}) {
+  onDelete: () => void;
+}){
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: subtask.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
   const [isEditing, setIsEditing] = useState(false);
@@ -195,6 +197,17 @@ function SortableSubtaskRow({
           {subtask.title}
         </span>
       )}
+      <Button
+        isIconOnly
+        size="sm"
+        variant="light"
+        color="danger"
+        className="opacity-0 group-hover/sub:opacity-100 w-4 h-4 min-w-4 shrink-0"
+        onPress={onDelete}
+        title="Delete subtask"
+      >
+        <X size={9} />
+      </Button>
     </div>
   );
 }
@@ -203,8 +216,10 @@ function SortableTask({
   task,
   onToggle,
   onEdit,
+  onDelete,
   onAddSubtask,
   onToggleSubtask,
+  onDeleteSubtask,
   onReorderSubtasks,
   onUpdateTitle,
   onTogglePriority,
@@ -213,13 +228,15 @@ function SortableTask({
   task: Task;
   onToggle: () => void;
   onEdit: () => void;
+  onDelete: (taskId: string) => void;
   onAddSubtask: (taskId: string, title: string) => void;
   onToggleSubtask: (taskId: string, subtaskId: string) => void;
+  onDeleteSubtask: (taskId: string, subtaskId: string) => void;
   onReorderSubtasks: (taskId: string, subtasks: Subtask[]) => void;
   onUpdateTitle: (taskId: string, title: string) => void;
   onTogglePriority: (taskId: string, currentPriority: TaskPriority) => void;
   onUpdateSubtaskTitle: (taskId: string, subtaskId: string, title: string) => void;
-}) {
+}){
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
   const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
   const [addingSubtask, setAddingSubtask] = useState(false);
@@ -340,6 +357,17 @@ function SortableTask({
           >
             <Plus size={9} />
           </Button>
+          <Button
+            isIconOnly
+            size="sm"
+            variant="light"
+            color="danger"
+            className="opacity-0 group-hover:opacity-100 w-4 h-4 min-w-4"
+            onPress={(e) => { onDelete(task.id); }}
+            title="Delete task"
+          >
+            <Trash2 size={9} />
+          </Button>
         </div>
       </div>
 
@@ -353,6 +381,7 @@ function SortableTask({
                 subtask={st}
                 onToggle={() => onToggleSubtask(task.id, st.id)}
                 onUpdateTitle={(title) => onUpdateSubtaskTitle(task.id, st.id, title)}
+                onDelete={() => onDeleteSubtask(task.id, st.id)}
               />
             ))}
           </SortableContext>
@@ -551,6 +580,13 @@ export default function TasksPage() {
 
   const handleReorderSubtasks = (taskId: string, subtasks: Subtask[]) => {
     updateTask(taskId, { subtasks });
+  };
+
+  const handleDeleteSubtask = (taskId: string, subtaskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const updated = (task.subtasks || []).filter((s) => s.id !== subtaskId);
+    updateTask(taskId, { subtasks: updated });
   };
 
   const handleUpdateSubtaskTitle = (taskId: string, subtaskId: string, title: string) => {
@@ -758,8 +794,10 @@ export default function TasksPage() {
                                 task={task}
                                 onToggle={() => updateTask(task.id, { status: task.status === "completed" ? "not_started" : "completed" })}
                                 onEdit={() => openEditModal(task)}
+                                onDelete={(id) => deleteTask(id)}
                                 onAddSubtask={handleAddSubtaskInline}
                                 onToggleSubtask={handleToggleSubtask}
+                                onDeleteSubtask={handleDeleteSubtask}
                                 onReorderSubtasks={handleReorderSubtasks}
                                 onUpdateTitle={handleUpdateTitle}
                                 onTogglePriority={handleTogglePriority}
@@ -836,6 +874,11 @@ export default function TasksPage() {
                   </div>
                 </ModalBody>
                 <ModalFooter>
+                  {editingTask && (
+                    <Button color="danger" variant="flat" size="sm" className="mr-auto" onPress={() => { deleteTask(editingTask.id); onClose(); }}>
+                      <Trash2 size={14} /> Delete
+                    </Button>
+                  )}
                   <Button variant="flat" size="sm" onPress={onClose}>Cancel</Button>
                   <Button color="primary" size="sm" onPress={handleSubmit}>{editingTask ? "Update" : "Create"}</Button>
                 </ModalFooter>
