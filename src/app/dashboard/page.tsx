@@ -964,7 +964,7 @@ export default function DashboardPage() {
   };
 
   const handleOpenEditModal = (task: Task) => {
-    router.push("/tasks");
+    router.push(`/tasks?edit=${task.id}`);
   };
 
   const handleUpdateSubtaskTitle = (taskId: string, subtaskId: string, title: string) => {
