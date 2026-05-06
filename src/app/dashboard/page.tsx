@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/providers/auth-provider";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import {
   Card,
   CardBody,
@@ -37,6 +37,7 @@ import { useTodayTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { useHabits, useHabitLogs, useHabitMutations } from "@/hooks/use-habits";
 import { usePomodoroSessions } from "@/hooks/use-pomodoro";
 import { useSchedule } from "@/hooks/use-schedule";
+import { useProjects } from "@/hooks/use-projects";
 import { format } from "date-fns";
 import { Timestamp } from "firebase/firestore";
 import {
@@ -210,6 +211,7 @@ function SortableTaskItem({
   onOpenEditModal,
   onUpdateSubtaskTitle,
   isFocused,
+  projectName,
 }: {
   task: Task;
   onToggle: (id: string, completed: boolean) => void;
@@ -222,7 +224,8 @@ function SortableTaskItem({
   onOpenEditModal: (task: Task) => void;
   onUpdateSubtaskTitle: (taskId: string, subtaskId: string, title: string) => void;
   isFocused: boolean;
-}) {
+  projectName?: string;
+}){
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
   const [addingSubtask, setAddingSubtask] = useState(false);
@@ -323,6 +326,7 @@ function SortableTaskItem({
               <span className={`text-sm truncate cursor-text ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
                 {task.title}
               </span>
+              {projectName && <span className="text-[9px] text-default-400 shrink-0">· {projectName}</span>}
               {isFocused && <Star size={10} className="text-primary shrink-0 fill-primary" />}
             </div>
           )}
@@ -422,6 +426,7 @@ function TaskSection({
   onDragEnd,
   onQuickAdd,
   sensors,
+  projectsMap,
 }: {
   type: (typeof TASK_TYPES)[number];
   tasks: Task[];
@@ -438,6 +443,7 @@ function TaskSection({
   onDragEnd: (event: DragEndEvent, category: TaskType) => void;
   onQuickAdd: (title: string, category: TaskType, subtype?: TaskSubtype) => void;
   sensors: ReturnType<typeof useSensors>;
+  projectsMap: Record<string, string>;
 }){
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -560,6 +566,7 @@ function TaskSection({
                             onOpenEditModal={onOpenEditModal}
                             onUpdateSubtaskTitle={onUpdateSubtaskTitle}
                             isFocused={task.id === focusTask?.id}
+                            projectName={task.projectId ? projectsMap[task.projectId] : undefined}
                           />
                         ))}
                       </div>
@@ -583,6 +590,7 @@ function TaskSection({
                           onOpenEditModal={onOpenEditModal}
                           onUpdateSubtaskTitle={onUpdateSubtaskTitle}
                           isFocused={task.id === focusTask?.id}
+                          projectName={task.projectId ? projectsMap[task.projectId] : undefined}
                         />
                       ))}
                     </div>
@@ -603,6 +611,7 @@ function TaskSection({
                     onOpenEditModal={onOpenEditModal}
                     onUpdateSubtaskTitle={onUpdateSubtaskTitle}
                     isFocused={task.id === focusTask?.id}
+                    projectName={task.projectId ? projectsMap[task.projectId] : undefined}
                   />
                 ))
               )}
@@ -843,6 +852,7 @@ export default function DashboardPage() {
   const { habits } = useHabits();
   const { logs } = useHabitLogs(undefined, 1);
   const { sessions } = usePomodoroSessions();
+  const { projects } = useProjects();
   const todayDate = format(new Date(), "yyyy-MM-dd");
   const { events: scheduleEvents } = useSchedule(todayDate);
   const { addTask, updateTask, reorderTasks } = useTaskMutations();
@@ -850,6 +860,12 @@ export default function DashboardPage() {
   const [completedOpen, setCompletedOpen] = useState(false);
   const [focusTasks, setFocusTasks] = useState<Record<TaskType, string>>({} as any);
   const [focusHabitId, setFocusHabitId] = useState<string>("");
+
+  const projectsMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    projects.forEach((p) => { map[p.id] = p.name; });
+    return map;
+  }, [projects]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -1045,6 +1061,7 @@ export default function DashboardPage() {
                 onDragEnd={handleDragEnd}
                 onQuickAdd={handleQuickAdd}
                 sensors={sensors}
+                projectsMap={projectsMap}
               />
             ))}
             <HabitSection

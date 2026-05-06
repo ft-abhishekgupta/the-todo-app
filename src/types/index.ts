@@ -106,12 +106,18 @@ export interface PomodoroSession {
 }
 
 // Project Types
+export type ProjectType = "work" | "personal" | "growth";
+export type ProjectStatus = "active" | "completed" | "on_hold";
+
 export interface Project {
   id: string;
   userId: string;
   name: string;
   description?: string;
+  notes?: string;
   color: string;
+  type: ProjectType;
+  status: ProjectStatus;
   deadline?: Timestamp;
   isActive: boolean;
   createdAt: Timestamp;
