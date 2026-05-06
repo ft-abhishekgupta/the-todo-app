@@ -53,6 +53,7 @@ export type HabitCategory =
   | "quarter_end";
 
 export type HabitFrequency = "daily" | "weekly" | "monthly";
+export type HabitType = "checkbox" | "counter";
 
 export interface Habit {
   id: string;
@@ -61,9 +62,13 @@ export interface Habit {
   description?: string;
   category: HabitCategory;
   frequency: HabitFrequency;
+  type: HabitType;
+  targetCount?: number; // For counter habits (e.g., 8 glasses of water)
+  unit?: string; // e.g., "glasses", "minutes", "pages"
   targetDays?: number[]; // For weekly habits
   streak: number;
   longestStreak: number;
+  order: number;
   isActive: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
@@ -75,6 +80,7 @@ export interface HabitLog {
   userId: string;
   date: string; // YYYY-MM-DD format
   completed: boolean;
+  count?: number; // For counter habits
   createdAt: Timestamp;
 }
 

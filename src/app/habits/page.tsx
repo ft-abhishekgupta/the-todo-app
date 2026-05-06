@@ -18,23 +18,45 @@ import {
   Input,
   Select,
   SelectItem,
-  Textarea,
   Progress,
+  Switch,
 } from "@nextui-org/react";
 import { motion } from "framer-motion";
-import { Plus, Flame, TrendingUp, Calendar, Trash2 } from "lucide-react";
+import {
+  Plus,
+  Flame,
+  TrendingUp,
+  Trash2,
+  GripVertical,
+  Minus,
+} from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { useHabits, useHabitLogs, useHabitMutations } from "@/hooks/use-habits";
-import { HabitCategory, HabitFrequency, Habit } from "@/types";
+import { HabitCategory, HabitFrequency, HabitType, Habit } from "@/types";
 import { format, subDays, eachDayOfInterval } from "date-fns";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 const categoryOptions: { key: HabitCategory; label: string }[] = [
-  { key: "morning", label: "Morning" },
-  { key: "all_day", label: "All Day" },
-  { key: "night", label: "Night" },
-  { key: "weekend", label: "Weekend" },
-  { key: "month_end", label: "Month End" },
-  { key: "quarter_end", label: "Quarter End" },
+  { key: "morning", label: "🌅 Morning" },
+  { key: "all_day", label: "☀️ All Day" },
+  { key: "night", label: "🌙 Night" },
+  { key: "weekend", label: "📅 Weekend" },
+  { key: "month_end", label: "📆 Month End" },
+  { key: "quarter_end", label: "🗓️ Quarter End" },
 ];
 
 const frequencyOptions: { key: HabitFrequency; label: string }[] = [
@@ -43,35 +65,128 @@ const frequencyOptions: { key: HabitFrequency; label: string }[] = [
   { key: "monthly", label: "Monthly" },
 ];
 
-function HabitHeatmap({ habitId }: { habitId: string }) {
-  const { logs } = useHabitLogs(habitId, 90);
+function MiniHeatmap({ habitId }: { habitId: string }) {
+  const { logs } = useHabitLogs(habitId, 28);
   const today = new Date();
-  const days = eachDayOfInterval({
-    start: subDays(today, 83),
-    end: today,
-  });
-
-  const completedDates = new Set(
-    logs.filter((l) => l.completed).map((l) => l.date)
-  );
+  const days = eachDayOfInterval({ start: subDays(today, 27), end: today });
+  const completedDates = new Set(logs.filter((l) => l.completed).map((l) => l.date));
 
   return (
-    <div className="flex gap-0.5 flex-wrap">
+    <div className="flex gap-[2px] flex-wrap">
       {days.map((day) => {
         const dateStr = format(day, "yyyy-MM-dd");
-        const isCompleted = completedDates.has(dateStr);
         return (
           <div
             key={dateStr}
-            className={`w-3 h-3 rounded-sm ${
-              isCompleted
-                ? "bg-success"
-                : "bg-default-100 dark:bg-default-50"
-            }`}
-            title={`${dateStr}: ${isCompleted ? "Completed" : "Not done"}`}
+            className={`w-2 h-2 rounded-[2px] ${completedDates.has(dateStr) ? "bg-success" : "bg-default-100"}`}
           />
         );
       })}
+    </div>
+  );
+}
+
+function SortableHabit({
+  habit,
+  isCompleted,
+  currentCount,
+  onToggle,
+  onIncrement,
+  onDecrement,
+  onDelete,
+}: {
+  habit: Habit;
+  isCompleted: boolean;
+  currentCount: number;
+  onToggle: () => void;
+  onIncrement: () => void;
+  onDecrement: () => void;
+  onDelete: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+    id: habit.id,
+  });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+  const isCounter = habit.type === "counter";
+  const progress = isCounter && habit.targetCount ? Math.min((currentCount / habit.targetCount) * 100, 100) : 0;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 p-2 sm:p-3 rounded-lg border border-divider hover:border-primary/20 transition-all group mb-2 bg-content1"
+    >
+      <button {...attributes} {...listeners} className="cursor-grab opacity-0 group-hover:opacity-100 shrink-0 touch-none">
+        <GripVertical size={14} className="text-default-400" />
+      </button>
+
+      {isCounter ? (
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className={`text-sm font-medium truncate ${isCompleted ? "text-success" : ""}`}>
+                {habit.title}
+              </span>
+              {habit.streak > 0 && (
+                <Chip size="sm" color="warning" variant="flat" className="h-4 shrink-0" startContent={<Flame size={8} />}>
+                  {habit.streak}
+                </Chip>
+              )}
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <Progress size="sm" value={progress} color={isCompleted ? "success" : "primary"} className="flex-1 max-w-[150px]" />
+              <span className="text-[10px] text-default-500 shrink-0">
+                {currentCount}/{habit.targetCount} {habit.unit || ""}
+              </span>
+            </div>
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            <Button size="sm" isIconOnly variant="flat" className="w-6 h-6 min-w-6" onPress={onDecrement} isDisabled={currentCount <= 0}>
+              <Minus size={12} />
+            </Button>
+            <span className="text-sm font-bold w-6 text-center">{currentCount}</span>
+            <Button size="sm" isIconOnly variant="flat" color="primary" className="w-6 h-6 min-w-6" onPress={onIncrement}>
+              <Plus size={12} />
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 flex-1 min-w-0">
+          <div
+            className={`w-5 h-5 rounded-md border-2 flex items-center justify-center cursor-pointer shrink-0 transition-all ${
+              isCompleted ? "bg-success border-success scale-105" : "border-default-300 hover:border-primary"
+            }`}
+            onClick={onToggle}
+          >
+            {isCompleted && (
+              <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className={`text-sm font-medium truncate block ${isCompleted ? "text-default-400 line-through" : ""}`}>
+              {habit.title}
+            </span>
+          </div>
+          {habit.streak > 0 && (
+            <Chip size="sm" color="warning" variant="flat" className="h-5 shrink-0" startContent={<Flame size={10} />}>
+              {habit.streak}
+            </Chip>
+          )}
+        </div>
+      )}
+
+      <Button
+        isIconOnly
+        size="sm"
+        variant="light"
+        color="danger"
+        className="opacity-0 group-hover:opacity-100 shrink-0"
+        onPress={onDelete}
+      >
+        <Trash2 size={12} />
+      </Button>
     </div>
   );
 }
@@ -81,14 +196,18 @@ export default function HabitsPage() {
   const router = useRouter();
   const { habits, loading: habitsLoading } = useHabits();
   const { logs } = useHabitLogs(undefined, 30);
-  const { addHabit, toggleHabitLog, deleteHabit } = useHabitMutations();
+  const { addHabit, toggleHabitLog, updateHabitCount, reorderHabits, deleteHabit } = useHabitMutations();
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
   const [formTitle, setFormTitle] = useState("");
-  const [formDescription, setFormDescription] = useState("");
   const [formCategory, setFormCategory] = useState<HabitCategory>("morning");
   const [formFrequency, setFormFrequency] = useState<HabitFrequency>("daily");
+  const [formType, setFormType] = useState<HabitType>("checkbox");
+  const [formTargetCount, setFormTargetCount] = useState("1");
+  const [formUnit, setFormUnit] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<HabitCategory | "all">("all");
+
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -103,11 +222,7 @@ export default function HabitsPage() {
   }
 
   const todayDate = format(new Date(), "yyyy-MM-dd");
-  const filteredHabits =
-    selectedCategory === "all"
-      ? habits
-      : habits.filter((h) => h.category === selectedCategory);
-
+  const filteredHabits = selectedCategory === "all" ? habits : habits.filter((h) => h.category === selectedCategory);
   const completedToday = habits.filter((h) =>
     logs.some((l) => l.habitId === h.id && l.date === todayDate && l.completed)
   ).length;
@@ -116,91 +231,66 @@ export default function HabitsPage() {
     if (!formTitle.trim()) return;
     await addHabit({
       title: formTitle.trim(),
-      description: formDescription.trim() || undefined,
       category: formCategory,
       frequency: formFrequency,
+      type: formType,
+      targetCount: formType === "counter" ? parseInt(formTargetCount) || 1 : undefined,
+      unit: formType === "counter" ? formUnit.trim() || undefined : undefined,
+      order: habits.length,
       isActive: true,
     });
     setFormTitle("");
-    setFormDescription("");
+    setFormUnit("");
+    setFormTargetCount("1");
     onOpenChange();
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = filteredHabits.findIndex((h) => h.id === active.id);
+    const newIdx = filteredHabits.findIndex((h) => h.id === over.id);
+    const newOrder = arrayMove(filteredHabits, oldIdx, newIdx);
+    reorderHabits(newOrder.map((h) => h.id));
   };
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container mx-auto max-w-7xl px-4 py-6">
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+      <main className="container mx-auto max-w-3xl px-3 sm:px-4 py-4 sm:py-6">
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           {/* Header */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="flex justify-between items-center">
             <div>
-              <h1 className="text-2xl font-bold">Habits</h1>
-              <p className="text-default-500 text-sm">
-                {completedToday}/{habits.length} completed today
+              <h1 className="text-xl sm:text-2xl font-bold">Habits</h1>
+              <p className="text-default-500 text-xs">
+                {completedToday}/{habits.length} today · Best streak: {Math.max(0, ...habits.map((h) => h.longestStreak))}
               </p>
             </div>
-            <Button color="primary" startContent={<Plus size={18} />} onPress={onOpen}>
-              Add Habit
+            <Button color="primary" size="sm" startContent={<Plus size={16} />} onPress={onOpen}>
+              Add
             </Button>
           </div>
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <Card>
-              <CardBody className="flex flex-row items-center gap-3 p-4">
-                <div className="p-2 rounded-lg bg-success/10">
-                  <Flame size={20} className="text-success" />
-                </div>
-                <div>
-                  <p className="text-xs text-default-500">Best Streak</p>
-                  <p className="text-xl font-bold">
-                    {Math.max(0, ...habits.map((h) => h.longestStreak))}
-                  </p>
-                </div>
-              </CardBody>
-            </Card>
-            <Card>
-              <CardBody className="flex flex-row items-center gap-3 p-4">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <TrendingUp size={20} className="text-primary" />
-                </div>
-                <div>
-                  <p className="text-xs text-default-500">Today</p>
-                  <p className="text-xl font-bold">
-                    {habits.length > 0
-                      ? Math.round((completedToday / habits.length) * 100)
-                      : 0}
-                    %
-                  </p>
-                </div>
-              </CardBody>
-            </Card>
-            <Card>
-              <CardBody className="flex flex-row items-center gap-3 p-4">
-                <div className="p-2 rounded-lg bg-warning/10">
-                  <Calendar size={20} className="text-warning" />
-                </div>
-                <div>
-                  <p className="text-xs text-default-500">Active Habits</p>
-                  <p className="text-xl font-bold">{habits.length}</p>
-                </div>
-              </CardBody>
-            </Card>
-            <Card>
-              <CardBody className="p-4">
-                <p className="text-xs text-default-500 mb-2">Today&apos;s Progress</p>
-                <Progress
-                  value={habits.length > 0 ? (completedToday / habits.length) * 100 : 0}
-                  color="success"
-                  className="mt-1"
-                />
-              </CardBody>
-            </Card>
-          </div>
+          {/* Today's Progress */}
+          <Card shadow="sm">
+            <CardBody className="p-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium">Today&apos;s Progress</span>
+                <span className="text-xs text-default-500">{completedToday}/{habits.length}</span>
+              </div>
+              <Progress
+                value={habits.length > 0 ? (completedToday / habits.length) * 100 : 0}
+                color="success"
+                size="md"
+              />
+            </CardBody>
+          </Card>
 
           {/* Category Filter */}
-          <div className="flex gap-2 flex-wrap">
+          <div className="flex gap-1.5 flex-wrap">
             <Chip
+              size="sm"
               variant={selectedCategory === "all" ? "solid" : "bordered"}
               color="primary"
               className="cursor-pointer"
@@ -211,6 +301,7 @@ export default function HabitsPage() {
             {categoryOptions.map((cat) => (
               <Chip
                 key={cat.key}
+                size="sm"
                 variant={selectedCategory === cat.key ? "solid" : "bordered"}
                 color="primary"
                 className="cursor-pointer"
@@ -222,142 +313,114 @@ export default function HabitsPage() {
           </div>
 
           {/* Habit List */}
-          <div className="space-y-3">
-            {filteredHabits.length === 0 ? (
-              <Card>
-                <CardBody className="text-center py-12">
-                  <p className="text-default-400">No habits found</p>
-                  <Button
-                    color="primary"
-                    variant="flat"
-                    size="sm"
-                    className="mt-3"
-                    onPress={onOpen}
-                  >
-                    Create your first habit
-                  </Button>
-                </CardBody>
-              </Card>
-            ) : (
-              filteredHabits.map((habit) => {
-                const isCompleted = logs.some(
-                  (l) => l.habitId === habit.id && l.date === todayDate && l.completed
-                );
-                return (
-                  <motion.div
-                    key={habit.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                  >
-                    <Card>
-                      <CardBody className="p-4">
-                        <div className="flex items-start gap-4">
-                          <div
-                            className={`w-6 h-6 mt-0.5 rounded-md border-2 flex items-center justify-center cursor-pointer transition-all ${
-                              isCompleted
-                                ? "bg-success border-success scale-110"
-                                : "border-default-300 hover:border-primary"
-                            }`}
-                            onClick={() => toggleHabitLog(habit.id, todayDate, !isCompleted)}
-                          >
-                            {isCompleted && (
-                              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                              </svg>
-                            )}
-                          </div>
-                          <div className="flex-1 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <div>
-                                <h3 className={`font-medium ${isCompleted ? "text-default-400" : ""}`}>
-                                  {habit.title}
-                                </h3>
-                                {habit.description && (
-                                  <p className="text-default-500 text-xs">{habit.description}</p>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2">
-                                {habit.streak > 0 && (
-                                  <Chip size="sm" color="warning" variant="flat" startContent={<Flame size={12} />}>
-                                    {habit.streak} day streak
-                                  </Chip>
-                                )}
-                                <Chip size="sm" variant="flat">
-                                  {categoryOptions.find((c) => c.key === habit.category)?.label}
-                                </Chip>
-                                <Button
-                                  isIconOnly
-                                  size="sm"
-                                  variant="light"
-                                  color="danger"
-                                  onPress={() => deleteHabit(habit.id)}
-                                >
-                                  <Trash2 size={14} />
-                                </Button>
-                              </div>
-                            </div>
-                            <HabitHeatmap habitId={habit.id} />
-                          </div>
-                        </div>
-                      </CardBody>
-                    </Card>
-                  </motion.div>
-                );
-              })
-            )}
-          </div>
+          {filteredHabits.length === 0 ? (
+            <Card shadow="sm">
+              <CardBody className="text-center py-8">
+                <p className="text-default-400 text-sm">No habits yet</p>
+                <Button color="primary" variant="flat" size="sm" className="mt-2" onPress={onOpen}>
+                  Create your first habit
+                </Button>
+              </CardBody>
+            </Card>
+          ) : (
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+              <SortableContext items={filteredHabits.map((h) => h.id)} strategy={verticalListSortingStrategy}>
+                {filteredHabits.map((habit) => {
+                  const log = logs.find((l) => l.habitId === habit.id && l.date === todayDate);
+                  const isCompleted = log?.completed || false;
+                  const currentCount = log?.count || 0;
+                  return (
+                    <SortableHabit
+                      key={habit.id}
+                      habit={habit}
+                      isCompleted={isCompleted}
+                      currentCount={currentCount}
+                      onToggle={() => toggleHabitLog(habit.id, todayDate, !isCompleted)}
+                      onIncrement={() => updateHabitCount(habit.id, todayDate, currentCount + 1, habit.targetCount || 1)}
+                      onDecrement={() => updateHabitCount(habit.id, todayDate, Math.max(0, currentCount - 1), habit.targetCount || 1)}
+                      onDelete={() => deleteHabit(habit.id)}
+                    />
+                  );
+                })}
+              </SortableContext>
+            </DndContext>
+          )}
+
+          {/* Heatmaps */}
+          {habits.length > 0 && (
+            <Card shadow="sm">
+              <CardHeader className="px-4 py-2">
+                <span className="text-xs font-semibold">28-Day Activity</span>
+              </CardHeader>
+              <CardBody className="pt-0 px-4 pb-3 space-y-2">
+                {habits.slice(0, 5).map((habit) => (
+                  <div key={habit.id} className="flex items-center gap-3">
+                    <span className="text-[10px] text-default-500 w-20 truncate">{habit.title}</span>
+                    <MiniHeatmap habitId={habit.id} />
+                  </div>
+                ))}
+              </CardBody>
+            </Card>
+          )}
         </motion.div>
 
         {/* Create Habit Modal */}
-        <Modal isOpen={isOpen} onOpenChange={onOpenChange}>
+        <Modal isOpen={isOpen} onOpenChange={onOpenChange} size="md">
           <ModalContent>
             {(onClose) => (
               <>
                 <ModalHeader>Create Habit</ModalHeader>
-                <ModalBody className="space-y-4">
+                <ModalBody className="space-y-3">
                   <Input
                     label="Habit Name"
-                    placeholder="e.g., Meditate for 10 minutes"
+                    placeholder="e.g., Drink water, Meditate"
                     value={formTitle}
                     onValueChange={setFormTitle}
                     isRequired
                     variant="bordered"
+                    size="sm"
                   />
-                  <Textarea
-                    label="Description"
-                    placeholder="Optional description..."
-                    value={formDescription}
-                    onValueChange={setFormDescription}
-                    variant="bordered"
-                  />
-                  <Select
-                    label="Category"
-                    variant="bordered"
-                    selectedKeys={[formCategory]}
-                    onSelectionChange={(keys) => setFormCategory(Array.from(keys)[0] as HabitCategory)}
-                  >
-                    {categoryOptions.map((c) => (
-                      <SelectItem key={c.key}>{c.label}</SelectItem>
-                    ))}
-                  </Select>
-                  <Select
-                    label="Frequency"
-                    variant="bordered"
-                    selectedKeys={[formFrequency]}
-                    onSelectionChange={(keys) => setFormFrequency(Array.from(keys)[0] as HabitFrequency)}
-                  >
-                    {frequencyOptions.map((f) => (
-                      <SelectItem key={f.key}>{f.label}</SelectItem>
-                    ))}
-                  </Select>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Select label="Category" variant="bordered" size="sm" selectedKeys={[formCategory]} onSelectionChange={(k) => setFormCategory(Array.from(k)[0] as HabitCategory)}>
+                      {categoryOptions.map((c) => <SelectItem key={c.key}>{c.label}</SelectItem>)}
+                    </Select>
+                    <Select label="Frequency" variant="bordered" size="sm" selectedKeys={[formFrequency]} onSelectionChange={(k) => setFormFrequency(Array.from(k)[0] as HabitFrequency)}>
+                      {frequencyOptions.map((f) => <SelectItem key={f.key}>{f.label}</SelectItem>)}
+                    </Select>
+                  </div>
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-content2">
+                    <Switch
+                      size="sm"
+                      isSelected={formType === "counter"}
+                      onValueChange={(v) => setFormType(v ? "counter" : "checkbox")}
+                    />
+                    <span className="text-sm">Counter habit (track quantity)</span>
+                  </div>
+                  {formType === "counter" && (
+                    <div className="grid grid-cols-2 gap-3">
+                      <Input
+                        type="number"
+                        label="Target"
+                        placeholder="8"
+                        value={formTargetCount}
+                        onValueChange={setFormTargetCount}
+                        variant="bordered"
+                        size="sm"
+                      />
+                      <Input
+                        label="Unit"
+                        placeholder="glasses, minutes, pages..."
+                        value={formUnit}
+                        onValueChange={setFormUnit}
+                        variant="bordered"
+                        size="sm"
+                      />
+                    </div>
+                  )}
                 </ModalBody>
                 <ModalFooter>
-                  <Button variant="flat" onPress={onClose}>
-                    Cancel
-                  </Button>
-                  <Button color="primary" onPress={handleCreateHabit}>
-                    Create
-                  </Button>
+                  <Button variant="flat" size="sm" onPress={onClose}>Cancel</Button>
+                  <Button color="primary" size="sm" onPress={handleCreateHabit}>Create</Button>
                 </ModalFooter>
               </>
             )}

@@ -10,6 +10,7 @@ import {
   doc,
   Timestamp,
   getDocs,
+  writeBatch,
 } from "firebase/firestore";
 import { db } from "@/config/firebase";
 import { Habit, HabitLog, HabitCategory } from "@/types";
@@ -151,6 +152,46 @@ export function useHabitMutations() {
     await updateStreak(habitId);
   };
 
+  const updateHabitCount = async (habitId: string, date: string, count: number, targetCount: number) => {
+    if (!user) throw new Error("Not authenticated");
+
+    const logsRef = collection(db, "habitLogs");
+    const q = query(
+      logsRef,
+      where("userId", "==", user.uid),
+      where("habitId", "==", habitId),
+      where("date", "==", date)
+    );
+
+    const snapshot = await getDocs(q);
+    const completed = count >= targetCount;
+
+    if (snapshot.empty) {
+      await addDoc(logsRef, {
+        habitId,
+        userId: user.uid,
+        date,
+        count,
+        completed,
+        createdAt: Timestamp.now(),
+      });
+    } else {
+      const logDoc = snapshot.docs[0];
+      await updateDoc(doc(db, "habitLogs", logDoc.id), { count, completed });
+    }
+
+    if (completed) await updateStreak(habitId);
+  };
+
+  const reorderHabits = async (habitIds: string[]) => {
+    if (!user) throw new Error("Not authenticated");
+    const batch = writeBatch(db);
+    habitIds.forEach((id, index) => {
+      batch.update(doc(db, "habits", id), { order: index });
+    });
+    await batch.commit();
+  };
+
   const updateStreak = async (habitId: string) => {
     if (!user) return;
 
@@ -200,5 +241,5 @@ export function useHabitMutations() {
     toast.success("Habit archived");
   };
 
-  return { addHabit, toggleHabitLog, deleteHabit };
+  return { addHabit, toggleHabitLog, updateHabitCount, reorderHabits, deleteHabit };
 }
