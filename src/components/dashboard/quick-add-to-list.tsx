@@ -6,7 +6,7 @@ import { ListPlus, Plus } from "lucide-react";
 import { useLists, useListMutations } from "@/hooks/use-lists";
 import toast from "react-hot-toast";
 
-export function QuickAddToList() {
+export function QuickAddToList({ iconOnly = false }: { iconOnly?: boolean } = {}) {
   const { lists } = useLists();
   const { addItem } = useListMutations();
   const [selectedListId, setSelectedListId] = useState("");
@@ -25,9 +25,15 @@ export function QuickAddToList() {
   return (
     <Popover isOpen={open} onOpenChange={setOpen} placement="bottom-end">
       <PopoverTrigger>
-        <Button size="sm" variant="flat" startContent={<ListPlus size={14} />} title="Add to a list">
-          Add to list
-        </Button>
+        {iconOnly ? (
+          <Button isIconOnly size="sm" variant="light" title="Add to a list" aria-label="Add to a list">
+            <Plus size={18} />
+          </Button>
+        ) : (
+          <Button size="sm" variant="flat" startContent={<ListPlus size={14} />} title="Add to a list">
+            Add to list
+          </Button>
+        )}
       </PopoverTrigger>
       <PopoverContent className="p-3 w-72">
         <div className="w-full space-y-2">

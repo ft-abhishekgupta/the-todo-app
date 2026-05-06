@@ -22,6 +22,7 @@ import clsx from "clsx";
 import { useAuth } from "@/providers/auth-provider";
 import { siteConfig } from "@/config/site";
 import { ThemeSwitch } from "./theme-switch";
+import { QuickAddToList } from "@/components/dashboard/quick-add-to-list";
 import { LogOut, User, Settings } from "lucide-react";
 
 export function Navbar() {
@@ -69,7 +70,8 @@ export function Navbar() {
       </NavbarContent>
 
       <NavbarContent className="hidden sm:flex basis-1/5 sm:basis-full" justify="end">
-        <NavbarItem className="hidden sm:flex gap-2">
+        <NavbarItem className="hidden sm:flex gap-1 items-center">
+          <QuickAddToList iconOnly />
           <ThemeSwitch />
         </NavbarItem>
         <NavbarItem>
@@ -110,6 +112,7 @@ export function Navbar() {
       </NavbarContent>
 
       <NavbarContent className="sm:hidden basis-1 pl-4" justify="end">
+        <QuickAddToList iconOnly />
         <ThemeSwitch />
         <Avatar
           size="sm"

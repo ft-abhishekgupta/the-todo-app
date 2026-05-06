@@ -37,7 +37,6 @@ import {
 import { Navbar } from "@/components/layout/navbar";
 import { SortableTaskItem } from "@/components/task/sortable-task-item";
 import { TaskEditModal } from "@/components/task/task-edit-modal";
-import { QuickAddToList } from "@/components/dashboard/quick-add-to-list";
 import { useTodayTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { useHabits, useHabitLogs, useHabitMutations } from "@/hooks/use-habits";
 import { usePomodoroSessions } from "@/hooks/use-pomodoro";
@@ -203,29 +202,6 @@ function TaskSection({
           <Plus size={14} />
         </Button>
       </CardHeader>
-
-      {focusTask && (
-        <div className="mx-3 mb-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
-          <div className="flex items-center gap-1.5">
-            <Star size={10} className="text-primary fill-primary" />
-            <span className="text-[10px] font-medium text-primary uppercase">Focus</span>
-          </div>
-          <p className="text-sm font-medium mt-0.5 truncate">{focusTask.title}</p>
-          {focusTask.subtasks && focusTask.subtasks.length > 0 && (() => {
-            const focusSub = focusTask.subtasks.find((s) => !s.completed);
-            if (!focusSub) return null;
-            return (
-              <div className="flex items-center gap-1.5 mt-1.5 pl-2 border-l-2 border-primary/30">
-                <div
-                  className="w-3 h-3 rounded-sm border border-default-300 cursor-pointer hover:border-primary shrink-0"
-                  onClick={() => onToggleSubtask(focusTask.id, focusSub.id)}
-                />
-                <span className="text-xs text-default-600 truncate">{focusSub.title}</span>
-              </div>
-            );
-          })()}
-        </div>
-      )}
 
       <AnimatePresence>
         {isAdding && (
@@ -726,10 +702,7 @@ export default function DashboardPage() {
                 {activeTasks.length} active · {completedTasks.length} done · {completedHabits}/{habits.length} habits
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <QuickAddToList />
-              <LiveClock />
-            </div>
+            <LiveClock />
           </div>
 
           {/* Stats */}
@@ -778,6 +751,182 @@ export default function DashboardPage() {
             </Card>
           </div>
 
+          {/* Today's Schedule */}
+          <Card shadow="sm">
+            <CardBody className="p-2.5">
+              <div className="flex items-center gap-2 mb-1.5">
+                <Calendar size={12} className="text-secondary shrink-0" />
+                <span className="text-xs font-semibold">Schedule</span>
+                <span className="text-[10px] text-default-400">{scheduleEvents.length} events</span>
+                <Button size="sm" variant="light" className="h-5 min-w-0 px-1.5 text-[10px] ml-auto" onPress={() => router.push("/schedule")}>
+                  View
+                </Button>
+              </div>
+              {scheduleEvents.length === 0 ? (
+                <p className="text-default-400 text-[10px] text-center py-1">No events</p>
+              ) : (
+                (() => {
+                  const now = format(new Date(), "HH:mm");
+                  const sorted = [...scheduleEvents].sort((a, b) => a.startTime.localeCompare(b.startTime));
+                  let nowIdx = sorted.findIndex((e) => e.startTime > now);
+                  if (nowIdx === -1) nowIdx = sorted.length;
+                  const typeColors: Record<string, string> = {
+                    event: "bg-blue-500", work: "bg-primary", personal: "bg-green-500",
+                    growth: "bg-orange-500", task: "bg-green-500", habit: "bg-purple-500",
+                  };
+                  const renderEvent = (event: typeof sorted[number]) => {
+                    const isPast = event.endTime <= now;
+                    const isCurrent = event.startTime <= now && event.endTime > now;
+                    const tooltipContent = (
+                      <div className="px-1 py-0.5 max-w-[220px]">
+                        <p className="text-xs font-semibold mb-0.5">{event.title}</p>
+                        <p className="text-[10px] text-default-300">
+                          {event.startTime} – {event.endTime} · {event.type}
+                        </p>
+                        {event.notes && (
+                          <p className="text-[10px] text-default-200 mt-1 whitespace-pre-wrap">{event.notes}</p>
+                        )}
+                      </div>
+                    );
+                    return (
+                      <Tooltip key={event.id} content={tooltipContent} placement="top" delay={150} closeDelay={0}>
+                        <div
+                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] cursor-pointer ${
+                            isCurrent ? "bg-primary/10 ring-1 ring-primary/30 font-medium" : isPast ? "opacity-40 line-through" : "bg-content2"
+                          }`}
+                          onClick={() => router.push("/schedule")}
+                        >
+                          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${typeColors[event.type] || "bg-gray-400"}`} />
+                          <span className="text-default-500">{event.startTime}</span>
+                          <span className="truncate max-w-[80px]">{event.title}</span>
+                        </div>
+                      </Tooltip>
+                    );
+                  };
+                  const nowMarker = (
+                    <div key="__now" className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-danger/10 ring-1 ring-danger/40">
+                      <div className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse shrink-0" />
+                      <span className="text-danger font-semibold tabular-nums">Now {now}</span>
+                    </div>
+                  );
+                  return (
+                    <div className="flex flex-wrap items-center gap-1">
+                      {sorted.slice(0, nowIdx).map(renderEvent)}
+                      {nowMarker}
+                      {sorted.slice(nowIdx).map(renderEvent)}
+                    </div>
+                  );
+                })()
+              )}
+            </CardBody>
+          </Card>
+
+          {/* Focus Tasks Row */}
+          {(() => {
+            const focusItems = TASK_TYPES.filter((t) => t.key !== "habit").map((type) => {
+              const catTasks = activeTasks.filter((t) => t.category === type.key);
+              const explicit = focusTasks[type.key] ? catTasks.find((t) => t.id === focusTasks[type.key]) : undefined;
+              const auto = catTasks.find((t) => t.priority === "high") || catTasks[0];
+              const focus = explicit || auto;
+              return focus ? { type, task: focus } : null;
+            }).filter(Boolean) as { type: typeof TASK_TYPES[number]; task: Task }[];
+
+            const focusHabit = focusHabitId
+              ? habits.find((h) => h.id === focusHabitId)
+              : habits.find((h) => !logs.some((l) => l.habitId === h.id && l.date === todayDate && l.completed)) || habits[0];
+
+            if (focusItems.length === 0 && !focusHabit) return null;
+
+            return (
+              <Card shadow="sm">
+                <CardBody className="p-2.5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Star size={12} className="text-primary fill-primary shrink-0" />
+                    <span className="text-xs font-semibold">Focus</span>
+                    <span className="text-[10px] text-default-400">your top priorities right now</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                    {focusItems.map(({ type, task }) => {
+                      const Icon = type.icon;
+                      const nextSub = task.subtasks?.find((s) => !s.completed);
+                      return (
+                        <div
+                          key={type.key}
+                          className="p-2 rounded-lg bg-primary/5 border border-primary/20 hover:bg-primary/10 cursor-pointer"
+                          onClick={() => handleOpenEditModal(task)}
+                          title="Click to edit"
+                        >
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <Icon size={11} className={type.color} />
+                            <span className="text-[10px] uppercase font-semibold text-default-500">{type.label}</span>
+                          </div>
+                          <div className="flex items-start gap-1.5">
+                            <div
+                              className={`w-3.5 h-3.5 mt-0.5 rounded border-2 flex items-center justify-center cursor-pointer shrink-0 ${
+                                task.status === "completed" ? "bg-success border-success" : "border-default-300 hover:border-primary"
+                              }`}
+                              onClick={(e) => { e.stopPropagation(); handleToggleTask(task.id, task.status !== "completed"); }}
+                            >
+                              {task.status === "completed" && (
+                                <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </div>
+                            <span className={`text-sm font-medium leading-tight ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
+                              {task.title}
+                            </span>
+                          </div>
+                          {nextSub && (
+                            <div className="flex items-center gap-1.5 mt-1.5 pl-2 border-l-2 border-primary/30">
+                              <div
+                                className="w-3 h-3 rounded-sm border border-default-300 cursor-pointer hover:border-primary shrink-0"
+                                onClick={(e) => { e.stopPropagation(); handleToggleSubtask(task.id, nextSub.id); }}
+                              />
+                              <span className="text-[11px] text-default-600 truncate">{nextSub.title}</span>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                    {focusHabit && (() => {
+                      const isDone = logs.some((l) => l.habitId === focusHabit.id && l.date === todayDate && l.completed);
+                      return (
+                        <div
+                          className="p-2 rounded-lg bg-secondary/5 border border-secondary/20 hover:bg-secondary/10 cursor-pointer"
+                          onClick={() => router.push("/habits")}
+                          title="Go to habits"
+                        >
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <Flame size={11} className="text-secondary" />
+                            <span className="text-[10px] uppercase font-semibold text-default-500">Habit</span>
+                          </div>
+                          <div className="flex items-start gap-1.5">
+                            <div
+                              className={`w-3.5 h-3.5 mt-0.5 rounded border-2 flex items-center justify-center cursor-pointer shrink-0 ${
+                                isDone ? "bg-secondary border-secondary" : "border-default-300 hover:border-secondary"
+                              }`}
+                              onClick={(e) => { e.stopPropagation(); toggleHabitLog(focusHabit.id, todayDate, !isDone); }}
+                            >
+                              {isDone && (
+                                <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </div>
+                            <span className={`text-sm font-medium leading-tight ${isDone ? "line-through text-default-400" : ""}`}>
+                              {focusHabit.title}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </CardBody>
+              </Card>
+            );
+          })()}
+
           {/* 4-Section Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {TASK_TYPES.filter((t) => t.key !== "habit").map((type) => (
@@ -814,79 +963,6 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Today's Schedule */}
-          <Card shadow="sm">
-            <CardBody className="p-2.5">
-              <div className="flex items-center gap-2 mb-1.5">
-                <Calendar size={12} className="text-secondary shrink-0" />
-                <span className="text-xs font-semibold">Schedule</span>
-                <span className="text-[10px] text-default-400">{scheduleEvents.length} events</span>
-                <Button size="sm" variant="light" className="h-5 min-w-0 px-1.5 text-[10px] ml-auto" onPress={() => router.push("/schedule")}>
-                  View
-                </Button>
-              </div>
-              {scheduleEvents.length === 0 ? (
-                <p className="text-default-400 text-[10px] text-center py-1">No events</p>
-              ) : (
-                (() => {
-                  const now = format(new Date(), "HH:mm");
-                  const sorted = [...scheduleEvents].sort((a, b) => a.startTime.localeCompare(b.startTime));
-                  // Find insertion index for the "now" marker
-                  let nowIdx = sorted.findIndex((e) => e.startTime > now);
-                  if (nowIdx === -1) nowIdx = sorted.length;
-                  const typeColors: Record<string, string> = {
-                    event: "bg-blue-500", work: "bg-primary", personal: "bg-green-500",
-                    growth: "bg-orange-500", task: "bg-green-500", habit: "bg-purple-500",
-                  };
-
-                  const renderEvent = (event: typeof sorted[number]) => {
-                    const isPast = event.endTime <= now;
-                    const isCurrent = event.startTime <= now && event.endTime > now;
-                    const tooltipContent = (
-                      <div className="px-1 py-0.5 max-w-[220px]">
-                        <p className="text-xs font-semibold mb-0.5">{event.title}</p>
-                        <p className="text-[10px] text-default-300">
-                          {event.startTime} – {event.endTime} · {event.type}
-                        </p>
-                        {event.notes && (
-                          <p className="text-[10px] text-default-200 mt-1 whitespace-pre-wrap">{event.notes}</p>
-                        )}
-                      </div>
-                    );
-                    return (
-                      <Tooltip key={event.id} content={tooltipContent} placement="top" delay={150} closeDelay={0}>
-                        <div
-                          className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] cursor-pointer ${
-                            isCurrent ? "bg-primary/10 ring-1 ring-primary/30 font-medium" : isPast ? "opacity-40 line-through" : "bg-content2"
-                          }`}
-                          onClick={() => router.push("/schedule")}
-                        >
-                          <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${typeColors[event.type] || "bg-gray-400"}`} />
-                          <span className="text-default-500">{event.startTime}</span>
-                          <span className="truncate max-w-[80px]">{event.title}</span>
-                        </div>
-                      </Tooltip>
-                    );
-                  };
-
-                  const nowMarker = (
-                    <div key="__now" className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-danger/10 ring-1 ring-danger/40">
-                      <div className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse shrink-0" />
-                      <span className="text-danger font-semibold tabular-nums">Now {now}</span>
-                    </div>
-                  );
-
-                  return (
-                    <div className="flex flex-wrap items-center gap-1">
-                      {sorted.slice(0, nowIdx).map(renderEvent)}
-                      {nowMarker}
-                      {sorted.slice(nowIdx).map(renderEvent)}
-                    </div>
-                  );
-                })()
-              )}
-            </CardBody>
-          </Card>
         </motion.div>
       </main>
 
