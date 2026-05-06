@@ -26,12 +26,11 @@ import {
   DropdownItem,
   Progress,
 } from "@nextui-org/react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Plus,
   Search,
   MoreVertical,
-  Calendar,
   Trash2,
   Edit,
   ArrowRight,
@@ -44,22 +43,24 @@ import { useTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { useProjects } from "@/hooks/use-projects";
 import { Task, TaskStatus, TaskPriority, TaskCategory, Subtask } from "@/types";
 import { Timestamp } from "firebase/firestore";
-import { format, isToday, isYesterday, isTomorrow, isBefore, isAfter, startOfDay, addDays } from "date-fns";
+import { format, isToday, isYesterday, isTomorrow, isBefore, startOfDay, addDays } from "date-fns";
 import {
   DndContext,
   closestCenter,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
-  DragOverEvent,
 } from "@dnd-kit/core";
 import {
+  arrayMove,
   SortableContext,
   verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 
 const statusOptions: { key: TaskStatus; label: string }[] = [
   { key: "not_started", label: "Not Started" },
@@ -82,27 +83,60 @@ const categoryOptions: { key: TaskCategory; label: string }[] = [
   { key: "habit", label: "Habit" },
 ];
 
-type ColumnKey = "overdue" | "yesterday" | "today" | "tomorrow" | "later" | "unscheduled";
+type ColumnKey = "past" | "yesterday" | "today" | "tomorrow" | "future";
 
 function getColumnForTask(task: Task): ColumnKey {
-  if (!task.scheduledDate) return "unscheduled";
+  if (!task.scheduledDate) return "today";
   const date = task.scheduledDate.toDate();
   const today = startOfDay(new Date());
   if (isToday(date)) return "today";
   if (isYesterday(date)) return "yesterday";
   if (isTomorrow(date)) return "tomorrow";
-  if (isBefore(date, today)) return "overdue";
-  return "later";
+  if (isBefore(date, today)) return "past";
+  return "future";
 }
 
 const columns: { key: ColumnKey; label: string; color: string }[] = [
-  { key: "overdue", label: "Overdue", color: "text-danger" },
+  { key: "past", label: "Past", color: "text-danger" },
   { key: "yesterday", label: "Yesterday", color: "text-warning" },
   { key: "today", label: "Today", color: "text-primary" },
   { key: "tomorrow", label: "Tomorrow", color: "text-success" },
-  { key: "later", label: "Later", color: "text-default-500" },
-  { key: "unscheduled", label: "Unscheduled", color: "text-default-400" },
+  { key: "future", label: "Future", color: "text-default-500" },
 ];
+
+function SortableSubtaskRow({
+  subtask,
+  onToggle,
+}: {
+  subtask: Subtask;
+  onToggle: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: subtask.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-1.5 pl-9 py-0.5 group/sub">
+      <button {...attributes} {...listeners} className="cursor-grab opacity-0 group-hover/sub:opacity-100 touch-none shrink-0">
+        <GripVertical size={10} className="text-default-300" />
+      </button>
+      <div
+        className={`w-3 h-3 rounded-sm border flex items-center justify-center cursor-pointer shrink-0 ${
+          subtask.completed ? "bg-success/70 border-success" : "border-default-300 hover:border-primary"
+        }`}
+        onClick={onToggle}
+      >
+        {subtask.completed && (
+          <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+      </div>
+      <span className={`text-xs truncate ${subtask.completed ? "line-through text-default-400" : "text-default-600"}`}>
+        {subtask.title}
+      </span>
+    </div>
+  );
+}
 
 function SortableTask({
   task,
@@ -110,78 +144,145 @@ function SortableTask({
   onEdit,
   onDelete,
   onMoveNext,
+  onAddSubtask,
+  onToggleSubtask,
+  onReorderSubtasks,
 }: {
   task: Task;
   onToggle: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onMoveNext: () => void;
+  onAddSubtask: (taskId: string, title: string) => void;
+  onToggleSubtask: (taskId: string, subtaskId: string) => void;
+  onReorderSubtasks: (taskId: string, subtasks: Subtask[]) => void;
 }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: task.id,
-  });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+  const [addingSubtask, setAddingSubtask] = useState(false);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const subtasks = task.subtasks || [];
+  const completedSubs = subtasks.filter((s) => s.completed).length;
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
+  const subtaskSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
+
+  const handleSubtaskDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = subtasks.findIndex((s) => s.id === active.id);
+    const newIdx = subtasks.findIndex((s) => s.id === over.id);
+    onReorderSubtasks(task.id, arrayMove(subtasks, oldIdx, newIdx));
   };
 
-  const subtaskProgress = task.subtasks?.length
-    ? (task.subtasks.filter((s) => s.completed).length / task.subtasks.length) * 100
-    : null;
+  const handleAddSubtask = () => {
+    if (!newSubtaskTitle.trim()) return;
+    onAddSubtask(task.id, newSubtaskTitle.trim());
+    setNewSubtaskTitle("");
+    setAddingSubtask(false);
+  };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className="flex items-start gap-2 p-2 sm:p-3 rounded-lg bg-content1 border border-divider hover:border-primary/30 transition-all group mb-2"
+      className="bg-content1 border border-divider hover:border-primary/30 rounded-lg transition-all mb-2"
     >
-      <button {...attributes} {...listeners} className="cursor-grab mt-1 opacity-0 group-hover:opacity-100 shrink-0 touch-none">
-        <GripVertical size={14} className="text-default-400" />
-      </button>
-      <Checkbox
-        isSelected={task.status === "completed"}
-        onValueChange={onToggle}
-        color="success"
-        size="sm"
-        className="mt-0.5"
-      />
-      <div className="flex-1 min-w-0" onClick={onEdit}>
-        <p className={`text-sm font-medium truncate ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
-          {task.title}
-        </p>
-        <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-          <Chip size="sm" variant="flat" color={priorityOptions.find((p) => p.key === task.priority)?.color} className="h-5">
-            {task.priority}
-          </Chip>
-          {task.subtasks && task.subtasks.length > 0 && (
-            <span className="text-[10px] text-default-400">
-              {task.subtasks.filter((s) => s.completed).length}/{task.subtasks.length}
-            </span>
-          )}
-          {task.deadline && (
-            <span className="text-[10px] text-default-400">
-              📅 {format(task.deadline.toDate(), "MMM d")}
-            </span>
+      <div className="flex items-start gap-2 p-2 group">
+        <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing mt-1 touch-none shrink-0">
+          <GripVertical size={14} className="text-default-400" />
+        </button>
+        <Checkbox
+          isSelected={task.status === "completed"}
+          onValueChange={onToggle}
+          color="success"
+          size="sm"
+          className="mt-0.5"
+        />
+        <div className="flex-1 min-w-0" onClick={onEdit}>
+          <p className={`text-xs sm:text-sm font-medium truncate cursor-pointer ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
+            {task.title}
+          </p>
+          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+            <Chip size="sm" variant="flat" color={priorityOptions.find((p) => p.key === task.priority)?.color} className="h-4 text-[10px]">
+              {task.priority}
+            </Chip>
+            <Chip size="sm" variant="flat" className="h-4 text-[10px]">{task.category}</Chip>
+            {subtasks.length > 0 && (
+              <span className="text-[10px] text-default-400">{completedSubs}/{subtasks.length}</span>
+            )}
+            {task.deadline && (
+              <span className="text-[10px] text-default-400">📅 {format(task.deadline.toDate(), "MMM d")}</span>
+            )}
+          </div>
+          {subtasks.length > 0 && (
+            <Progress size="sm" value={(completedSubs / subtasks.length) * 100} color="primary" className="mt-1 max-w-[100px]" />
           )}
         </div>
-        {subtaskProgress !== null && (
-          <Progress size="sm" value={subtaskProgress} color="primary" className="mt-1.5 max-w-[120px]" />
-        )}
-      </div>
-      <Dropdown>
-        <DropdownTrigger>
-          <Button isIconOnly size="sm" variant="light" className="opacity-0 group-hover:opacity-100 shrink-0">
-            <MoreVertical size={14} />
+        <div className="flex items-center shrink-0">
+          <Button
+            isIconOnly
+            size="sm"
+            variant="light"
+            className="opacity-0 group-hover:opacity-100 w-5 h-5 min-w-5"
+            onPress={() => setAddingSubtask(!addingSubtask)}
+            title="Add subtask"
+          >
+            <Plus size={10} />
           </Button>
-        </DropdownTrigger>
-        <DropdownMenu aria-label="Task actions">
-          <DropdownItem key="edit" startContent={<Edit size={12} />} onPress={onEdit}>Edit</DropdownItem>
-          <DropdownItem key="next" startContent={<ArrowRight size={12} />} onPress={onMoveNext}>Move to next day</DropdownItem>
-          <DropdownItem key="delete" color="danger" startContent={<Trash2 size={12} />} onPress={onDelete}>Delete</DropdownItem>
-        </DropdownMenu>
-      </Dropdown>
+          <Dropdown>
+            <DropdownTrigger>
+              <Button isIconOnly size="sm" variant="light" className="opacity-0 group-hover:opacity-100 w-5 h-5 min-w-5 shrink-0">
+                <MoreVertical size={12} />
+              </Button>
+            </DropdownTrigger>
+            <DropdownMenu aria-label="Task actions">
+              <DropdownItem key="edit" startContent={<Edit size={12} />} onPress={onEdit}>Edit</DropdownItem>
+              <DropdownItem key="next" startContent={<ArrowRight size={12} />} onPress={onMoveNext}>Move to next day</DropdownItem>
+              <DropdownItem key="delete" color="danger" startContent={<Trash2 size={12} />} onPress={onDelete}>Delete</DropdownItem>
+            </DropdownMenu>
+          </Dropdown>
+        </div>
+      </div>
+
+      {/* Subtasks */}
+      {subtasks.length > 0 && (
+        <DndContext sensors={subtaskSensors} collisionDetection={closestCenter} onDragEnd={handleSubtaskDragEnd} modifiers={[restrictToVerticalAxis]}>
+          <SortableContext items={subtasks.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+            {subtasks.map((st) => (
+              <SortableSubtaskRow
+                key={st.id}
+                subtask={st}
+                onToggle={() => onToggleSubtask(task.id, st.id)}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+      )}
+
+      {/* Inline add subtask */}
+      {addingSubtask && (
+        <div className="flex items-center gap-1.5 pl-9 pr-2 pb-2">
+          <Input
+            size="sm"
+            variant="bordered"
+            placeholder="Subtask..."
+            value={newSubtaskTitle}
+            onValueChange={setNewSubtaskTitle}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleAddSubtask();
+              if (e.key === "Escape") setAddingSubtask(false);
+            }}
+            classNames={{ inputWrapper: "border-1 h-6", input: "text-xs" }}
+            autoFocus
+          />
+          <Button size="sm" isIconOnly variant="flat" color="primary" className="w-6 h-6 min-w-6" onPress={handleAddSubtask}>
+            <Plus size={10} />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -197,7 +298,6 @@ export default function TasksPage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [collapsedColumns, setCollapsedColumns] = useState<Set<ColumnKey>>(new Set());
 
-  // Form state
   const [formTitle, setFormTitle] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formStatus, setFormStatus] = useState<TaskStatus>("not_started");
@@ -212,7 +312,8 @@ export default function TasksPage() {
   const [newSubtask, setNewSubtask] = useState("");
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
   );
 
   useEffect(() => {
@@ -225,17 +326,9 @@ export default function TasksPage() {
   }, [tasks, searchQuery]);
 
   const tasksByColumn = useMemo(() => {
-    const grouped: Record<ColumnKey, Task[]> = {
-      overdue: [],
-      yesterday: [],
-      today: [],
-      tomorrow: [],
-      later: [],
-      unscheduled: [],
-    };
+    const grouped: Record<ColumnKey, Task[]> = { past: [], yesterday: [], today: [], tomorrow: [], future: [] };
     filteredTasks.forEach((task) => {
-      const col = getColumnForTask(task);
-      grouped[col].push(task);
+      grouped[getColumnForTask(task)].push(task);
     });
     return grouped;
   }, [filteredTasks]);
@@ -310,7 +403,7 @@ export default function TasksPage() {
     onOpenChange();
   };
 
-  const addSubtask = () => {
+  const addFormSubtask = () => {
     if (!newSubtask.trim()) return;
     setFormSubtasks([...formSubtasks, { id: crypto.randomUUID(), title: newSubtask.trim(), completed: false }]);
     setNewSubtask("");
@@ -323,15 +416,34 @@ export default function TasksPage() {
     setCollapsedColumns(next);
   };
 
+  const handleAddSubtaskInline = (taskId: string, title: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const newSub: Subtask = { id: crypto.randomUUID(), title, completed: false };
+    updateTask(taskId, { subtasks: [...(task.subtasks || []), newSub] });
+  };
+
+  const handleToggleSubtask = (taskId: string, subtaskId: string) => {
+    const task = tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const updated = (task.subtasks || []).map((s) =>
+      s.id === subtaskId ? { ...s, completed: !s.completed } : s
+    );
+    updateTask(taskId, { subtasks: updated });
+  };
+
+  const handleReorderSubtasks = (taskId: string, subtasks: Subtask[]) => {
+    updateTask(taskId, { subtasks });
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
-    // Simple reorder within same column for now
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const ids = tasks.map((t) => t.id);
-    const oldIdx = ids.indexOf(active.id as string);
-    const newIdx = ids.indexOf(over.id as string);
+    const allIds = tasks.map((t) => t.id);
+    const oldIdx = allIds.indexOf(active.id as string);
+    const newIdx = allIds.indexOf(over.id as string);
     if (oldIdx !== -1 && newIdx !== -1) {
-      const newIds = [...ids];
+      const newIds = [...allIds];
       newIds.splice(oldIdx, 1);
       newIds.splice(newIdx, 0, active.id as string);
       reorderTasks(newIds);
@@ -341,13 +453,13 @@ export default function TasksPage() {
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      <main className="container mx-auto max-w-7xl px-3 sm:px-4 py-4 sm:py-6">
+      <main className="container mx-auto max-w-full px-3 sm:px-4 py-4 sm:py-6">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
           {/* Header */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
               <h1 className="text-xl sm:text-2xl font-bold">Tasks</h1>
-              <p className="text-default-500 text-xs sm:text-sm">
+              <p className="text-default-500 text-xs">
                 {tasks.length} total · {tasks.filter((t) => t.status === "completed").length} done
               </p>
             </div>
@@ -367,54 +479,53 @@ export default function TasksPage() {
             </div>
           </div>
 
-          {/* Columns */}
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+          {/* 5 Columns in One Row */}
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               {columns.map((col) => {
                 const colTasks = tasksByColumn[col.key];
                 const isCollapsed = collapsedColumns.has(col.key);
-                if (colTasks.length === 0 && col.key !== "today") return null;
 
                 return (
-                  <Card key={col.key} shadow="sm" className="h-fit">
+                  <Card key={col.key} shadow="sm" className="h-fit min-w-0">
                     <CardHeader
-                      className="flex justify-between items-center px-3 py-2 cursor-pointer"
+                      className="flex justify-between items-center px-2 sm:px-3 py-2 cursor-pointer"
                       onClick={() => toggleColumn(col.key)}
                     >
-                      <div className="flex items-center gap-2">
-                        {isCollapsed ? <ChevronRightIcon size={14} /> : <ChevronDown size={14} />}
-                        <span className={`font-semibold text-sm ${col.color}`}>{col.label}</span>
-                        <Chip size="sm" variant="flat" className="h-5">{colTasks.length}</Chip>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        {isCollapsed ? <ChevronRightIcon size={12} /> : <ChevronDown size={12} />}
+                        <span className={`font-semibold text-xs sm:text-sm ${col.color} truncate`}>{col.label}</span>
+                        <Chip size="sm" variant="flat" className="h-4 text-[10px]">{colTasks.length}</Chip>
                       </div>
                       <Button
                         isIconOnly
                         size="sm"
                         variant="light"
-                        onPress={(e) => { openCreateModal(col.key); }}
+                        className="w-5 h-5 min-w-5"
+                        onPress={() => openCreateModal(col.key)}
                       >
-                        <Plus size={14} />
+                        <Plus size={12} />
                       </Button>
                     </CardHeader>
                     {!isCollapsed && (
-                      <CardBody className="pt-0 px-2 pb-2">
+                      <CardBody className="pt-0 px-1.5 sm:px-2 pb-2 max-h-[calc(100vh-220px)] overflow-y-auto">
                         <SortableContext items={colTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
                           {colTasks.map((task) => (
                             <SortableTask
                               key={task.id}
                               task={task}
-                              onToggle={() =>
-                                updateTask(task.id, {
-                                  status: task.status === "completed" ? "not_started" : "completed",
-                                })
-                              }
+                              onToggle={() => updateTask(task.id, { status: task.status === "completed" ? "not_started" : "completed" })}
                               onEdit={() => openEditModal(task)}
                               onDelete={() => deleteTask(task.id)}
                               onMoveNext={() => moveToNextDay(task.id, task.scheduledDate?.toDate() || new Date())}
+                              onAddSubtask={handleAddSubtaskInline}
+                              onToggleSubtask={handleToggleSubtask}
+                              onReorderSubtasks={handleReorderSubtasks}
                             />
                           ))}
                         </SortableContext>
                         {colTasks.length === 0 && (
-                          <p className="text-default-400 text-xs text-center py-4">No tasks</p>
+                          <p className="text-default-400 text-[10px] text-center py-4">No tasks</p>
                         )}
                       </CardBody>
                     )}
@@ -470,8 +581,8 @@ export default function TasksPage() {
                       </div>
                     ))}
                     <div className="flex gap-2">
-                      <Input size="sm" placeholder="Add subtask..." value={newSubtask} onValueChange={setNewSubtask} onKeyDown={(e) => e.key === "Enter" && addSubtask()} variant="bordered" />
-                      <Button size="sm" variant="flat" onPress={addSubtask}>Add</Button>
+                      <Input size="sm" placeholder="Add subtask..." value={newSubtask} onValueChange={setNewSubtask} onKeyDown={(e) => e.key === "Enter" && addFormSubtask()} variant="bordered" />
+                      <Button size="sm" variant="flat" onPress={addFormSubtask}>Add</Button>
                     </div>
                   </div>
                 </ModalBody>

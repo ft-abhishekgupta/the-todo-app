@@ -21,16 +21,15 @@ import {
   Target,
   Flame,
   Timer,
-  Calendar,
   GripVertical,
-  ChevronRight,
-  ChevronDown,
   CheckCircle2,
   Briefcase,
   User,
   TrendingUp,
   Star,
   X,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { useTodayTasks, useTaskMutations } from "@/hooks/use-tasks";
@@ -41,15 +40,16 @@ import { Timestamp } from "firebase/firestore";
 import {
   Task,
   TaskPriority,
-  TaskCategory,
   TaskType,
   TaskSubtype,
+  Subtask,
   Habit,
 } from "@/types";
 import {
   DndContext,
   closestCenter,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -61,8 +61,8 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 
-// Task type configurations
 const TASK_TYPES: {
   key: TaskType;
   label: string;
@@ -134,74 +134,187 @@ function LiveClock() {
   );
 }
 
+// Sortable subtask row
+function SortableSubtask({
+  subtask,
+  onToggle,
+}: {
+  subtask: Subtask;
+  onToggle: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: subtask.id });
+  const style = { transform: CSS.Transform.toString(transform), transition };
+
+  return (
+    <div ref={setNodeRef} style={style} className="flex items-center gap-1.5 pl-8 py-0.5 group/sub">
+      <button {...attributes} {...listeners} className="cursor-grab opacity-0 group-hover/sub:opacity-100 touch-none shrink-0">
+        <GripVertical size={10} className="text-default-300" />
+      </button>
+      <div
+        className={`w-3 h-3 rounded-sm border flex items-center justify-center cursor-pointer shrink-0 ${
+          subtask.completed ? "bg-success/70 border-success" : "border-default-300 hover:border-primary"
+        }`}
+        onClick={onToggle}
+      >
+        {subtask.completed && (
+          <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+          </svg>
+        )}
+      </div>
+      <span className={`text-xs truncate ${subtask.completed ? "line-through text-default-400" : "text-default-600"}`}>
+        {subtask.title}
+      </span>
+    </div>
+  );
+}
+
 function SortableTaskItem({
   task,
   onToggle,
   onSetFocus,
+  onAddSubtask,
+  onToggleSubtask,
+  onReorderSubtasks,
   isFocused,
 }: {
   task: Task;
   onToggle: (id: string, completed: boolean) => void;
   onSetFocus: (id: string) => void;
+  onAddSubtask: (taskId: string, title: string) => void;
+  onToggleSubtask: (taskId: string, subtaskId: string) => void;
+  onReorderSubtasks: (taskId: string, subtasks: Subtask[]) => void;
   isFocused: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
-  const completedSubtasks = task.subtasks?.filter((s) => s.completed).length || 0;
-  const totalSubtasks = task.subtasks?.length || 0;
+  const [addingSubtask, setAddingSubtask] = useState(false);
+  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+  const subtasks = task.subtasks || [];
+  const completedSubtasks = subtasks.filter((s) => s.completed).length;
+
+  const subtaskSensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 3 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
+
+  const handleSubtaskDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIdx = subtasks.findIndex((s) => s.id === active.id);
+    const newIdx = subtasks.findIndex((s) => s.id === over.id);
+    onReorderSubtasks(task.id, arrayMove(subtasks, oldIdx, newIdx));
+  };
+
+  const handleAddSubtask = () => {
+    if (!newSubtaskTitle.trim()) return;
+    onAddSubtask(task.id, newSubtaskTitle.trim());
+    setNewSubtaskTitle("");
+    setAddingSubtask(false);
+  };
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-start gap-2 p-2 rounded-lg hover:bg-content2 transition-colors group ${isFocused ? "bg-primary/5 border border-primary/20" : ""}`}
+      className={`rounded-lg hover:bg-content2/50 transition-colors mb-1 ${isFocused ? "bg-primary/5 border border-primary/20" : ""}`}
     >
-      <button {...attributes} {...listeners} className="cursor-grab opacity-0 group-hover:opacity-100 touch-none mt-0.5 shrink-0">
-        <GripVertical size={14} className="text-default-400" />
-      </button>
-      <div
-        className={`w-4 h-4 mt-0.5 rounded border-2 flex items-center justify-center cursor-pointer shrink-0 ${
-          task.status === "completed" ? "bg-success border-success" : "border-default-300 hover:border-primary"
-        }`}
-        onClick={() => onToggle(task.id, task.status !== "completed")}
-      >
-        {task.status === "completed" && (
-          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-          </svg>
-        )}
-      </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <span className={`text-sm truncate ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
-            {task.title}
-          </span>
-          {isFocused && <Star size={12} className="text-primary shrink-0 fill-primary" />}
+      {/* Main task row */}
+      <div className="flex items-center gap-2 p-2 group">
+        <button {...attributes} {...listeners} className="cursor-grab opacity-0 group-hover:opacity-100 touch-none shrink-0">
+          <GripVertical size={14} className="text-default-400" />
+        </button>
+        <div
+          className={`w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer shrink-0 ${
+            task.status === "completed" ? "bg-success border-success" : "border-default-300 hover:border-primary"
+          }`}
+          onClick={() => onToggle(task.id, task.status !== "completed")}
+        >
+          {task.status === "completed" && (
+            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
         </div>
-        {totalSubtasks > 0 && (
-          <div className="flex items-center gap-1.5 mt-1">
-            <Progress size="sm" value={(completedSubtasks / totalSubtasks) * 100} color="primary" className="w-20" />
-            <span className="text-[10px] text-default-400">{completedSubtasks}/{totalSubtasks}</span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className={`text-sm truncate ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
+              {task.title}
+            </span>
+            {isFocused && <Star size={10} className="text-primary shrink-0 fill-primary" />}
           </div>
-        )}
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        {!isFocused && task.status !== "completed" && (
+          {subtasks.length > 0 && (
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <Progress size="sm" value={(completedSubtasks / subtasks.length) * 100} color="primary" className="w-16" />
+              <span className="text-[10px] text-default-400">{completedSubtasks}/{subtasks.length}</span>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-0.5 shrink-0">
           <Button
             isIconOnly
             size="sm"
             variant="light"
             className="opacity-0 group-hover:opacity-100 w-5 h-5 min-w-5"
-            onPress={() => onSetFocus(task.id)}
-            title="Set as focus"
+            onPress={() => setAddingSubtask(!addingSubtask)}
+            title="Add subtask"
           >
-            <Star size={10} />
+            <Plus size={10} />
           </Button>
-        )}
-        <Chip size="sm" variant="dot" color={priorityColors[task.priority]} className="hidden sm:flex h-5">
-          {task.priority[0].toUpperCase()}
-        </Chip>
+          {!isFocused && task.status !== "completed" && (
+            <Button
+              isIconOnly
+              size="sm"
+              variant="light"
+              className="opacity-0 group-hover:opacity-100 w-5 h-5 min-w-5"
+              onPress={() => onSetFocus(task.id)}
+              title="Set as focus"
+            >
+              <Star size={10} />
+            </Button>
+          )}
+          <Chip size="sm" variant="dot" color={priorityColors[task.priority]} className="hidden sm:flex h-5">
+            {task.priority[0].toUpperCase()}
+          </Chip>
+        </div>
       </div>
+
+      {/* Subtasks */}
+      {subtasks.length > 0 && (
+        <DndContext sensors={subtaskSensors} collisionDetection={closestCenter} onDragEnd={handleSubtaskDragEnd} modifiers={[restrictToVerticalAxis]}>
+          <SortableContext items={subtasks.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+            {subtasks.map((st) => (
+              <SortableSubtask
+                key={st.id}
+                subtask={st}
+                onToggle={() => onToggleSubtask(task.id, st.id)}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
+      )}
+
+      {/* Add subtask inline */}
+      {addingSubtask && (
+        <div className="flex items-center gap-1.5 pl-8 pr-2 pb-2">
+          <Input
+            size="sm"
+            variant="bordered"
+            placeholder="Subtask..."
+            value={newSubtaskTitle}
+            onValueChange={setNewSubtaskTitle}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleAddSubtask();
+              if (e.key === "Escape") setAddingSubtask(false);
+            }}
+            classNames={{ inputWrapper: "border-1 h-6", input: "text-xs" }}
+            autoFocus
+          />
+          <Button size="sm" isIconOnly variant="flat" color="primary" className="w-6 h-6 min-w-6" onPress={handleAddSubtask}>
+            <Plus size={10} />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -212,6 +325,9 @@ function TaskSection({
   focusTaskId,
   onToggle,
   onSetFocus,
+  onAddSubtask,
+  onToggleSubtask,
+  onReorderSubtasks,
   onDragEnd,
   onQuickAdd,
   sensors,
@@ -221,6 +337,9 @@ function TaskSection({
   focusTaskId?: string;
   onToggle: (id: string, completed: boolean) => void;
   onSetFocus: (id: string) => void;
+  onAddSubtask: (taskId: string, title: string) => void;
+  onToggleSubtask: (taskId: string, subtaskId: string) => void;
+  onReorderSubtasks: (taskId: string, subtasks: Subtask[]) => void;
   onDragEnd: (event: DragEndEvent, category: TaskType) => void;
   onQuickAdd: (title: string, category: TaskType, subtype?: TaskSubtype) => void;
   sensors: ReturnType<typeof useSensors>;
@@ -231,7 +350,7 @@ function TaskSection({
   const Icon = type.icon;
 
   const activeTasks = tasks.filter((t) => t.status !== "completed");
-  const focusTask = activeTasks.find((t) => t.id === focusTaskId) || activeTasks[0];
+  const focusTask = activeTasks.find((t) => t.id === focusTaskId) || activeTasks.find((t) => t.priority === "urgent" || t.priority === "high") || activeTasks[0];
 
   const handleAdd = () => {
     if (!newTitle.trim()) return;
@@ -253,7 +372,6 @@ function TaskSection({
         </Button>
       </CardHeader>
 
-      {/* Focus Task */}
       {focusTask && (
         <div className="mx-3 mb-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
           <div className="flex items-center gap-1.5">
@@ -264,7 +382,6 @@ function TaskSection({
         </div>
       )}
 
-      {/* Quick Add */}
       <AnimatePresence>
         {isAdding && (
           <motion.div
@@ -307,12 +424,11 @@ function TaskSection({
         )}
       </AnimatePresence>
 
-      {/* Task List */}
-      <CardBody className="pt-0 px-2 pb-2 max-h-64 overflow-y-auto">
+      <CardBody className="pt-0 px-2 pb-2 max-h-72 overflow-y-auto">
         {activeTasks.length === 0 ? (
           <p className="text-default-400 text-xs text-center py-4">No tasks</p>
         ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => onDragEnd(e, type.key)}>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => onDragEnd(e, type.key)} modifiers={[restrictToVerticalAxis]}>
             <SortableContext items={activeTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
               {activeTasks.map((task) => (
                 <SortableTaskItem
@@ -320,6 +436,9 @@ function TaskSection({
                   task={task}
                   onToggle={onToggle}
                   onSetFocus={onSetFocus}
+                  onAddSubtask={onAddSubtask}
+                  onToggleSubtask={onToggleSubtask}
+                  onReorderSubtasks={onReorderSubtasks}
                   isFocused={task.id === focusTask?.id}
                 />
               ))}
@@ -361,24 +480,22 @@ function HabitSection({
           <Chip size="sm" variant="flat" className="h-5">{completedCount}/{habits.length}</Chip>
         </div>
       </CardHeader>
-      <CardBody className="pt-0 px-2 pb-2 max-h-64 overflow-y-auto">
+      <CardBody className="pt-0 px-2 pb-2 max-h-72 overflow-y-auto">
         {habits.length === 0 ? (
           <p className="text-default-400 text-xs text-center py-4">No habits</p>
         ) : (
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} modifiers={[restrictToVerticalAxis]}>
             <SortableContext items={habits.map((h) => h.id)} strategy={verticalListSortingStrategy}>
               {habits.map((habit) => {
                 const log = logs.find((l: any) => l.habitId === habit.id && l.date === todayDate);
                 const isCompleted = log?.completed || false;
                 const currentCount = log?.count || 0;
-                const isCounter = habit.type === "counter";
                 return (
                   <SortableHabitRow
                     key={habit.id}
                     habit={habit}
                     isCompleted={isCompleted}
                     currentCount={currentCount}
-                    isCounter={isCounter}
                     onToggle={() => onToggle(habit.id, !isCompleted)}
                     onIncrement={() => onIncrement(habit.id, currentCount + 1, habit.targetCount || 1)}
                   />
@@ -396,23 +513,22 @@ function SortableHabitRow({
   habit,
   isCompleted,
   currentCount,
-  isCounter,
   onToggle,
   onIncrement,
 }: {
   habit: Habit;
   isCompleted: boolean;
   currentCount: number;
-  isCounter: boolean;
   onToggle: () => void;
   onIncrement: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: habit.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
+  const isCounter = habit.type === "counter";
 
   return (
     <div ref={setNodeRef} style={style} className="flex items-center gap-2 p-2 rounded-lg hover:bg-content2 transition-colors group">
-      <button {...attributes} {...listeners} className="cursor-grab opacity-0 group-hover:opacity-100 touch-none shrink-0">
+      <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none shrink-0">
         <GripVertical size={14} className="text-default-400" />
       </button>
       {isCounter ? (
@@ -468,25 +584,22 @@ function CompletedSidebar({
     {} as Record<string, Task[]>
   );
 
-  const totalCompleted = tasks.length;
-  if (totalCompleted === 0) return null;
+  if (tasks.length === 0) return null;
 
   return (
     <div className="fixed right-0 top-16 bottom-0 z-30">
-      {/* Toggle Button */}
       <button
         onClick={onToggle}
-        className="absolute top-4 right-0 bg-success/10 hover:bg-success/20 border border-success/30 rounded-l-lg px-2 py-3 transition-all"
+        className="absolute top-4 bg-success/10 hover:bg-success/20 border border-success/30 rounded-l-lg px-2 py-3 transition-all"
         style={{ right: isOpen ? "320px" : "0" }}
       >
         <div className="flex flex-col items-center gap-1">
           <CheckCircle2 size={16} className="text-success" />
-          <span className="text-[10px] font-bold text-success">{totalCompleted}</span>
+          <span className="text-[10px] font-bold text-success">{tasks.length}</span>
           {isOpen ? <ChevronRight size={12} className="text-success" /> : <ChevronDown size={12} className="text-success rotate-90" />}
         </div>
       </button>
 
-      {/* Sidebar Panel */}
       <AnimatePresence>
         {isOpen && (
           <motion.div
@@ -500,7 +613,7 @@ function CompletedSidebar({
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-sm flex items-center gap-2">
                   <CheckCircle2 size={16} className="text-success" />
-                  Completed Today ({totalCompleted})
+                  Completed Today ({tasks.length})
                 </h3>
                 <Button isIconOnly size="sm" variant="light" onPress={onToggle}>
                   <X size={14} />
@@ -536,8 +649,8 @@ function CompletedSidebar({
 export default function DashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const { tasks: todayTasks, loading: tasksLoading } = useTodayTasks();
-  const { habits, loading: habitsLoading } = useHabits();
+  const { tasks: todayTasks } = useTodayTasks();
+  const { habits } = useHabits();
   const { logs } = useHabitLogs(undefined, 1);
   const { sessions } = usePomodoroSessions();
   const { addTask, updateTask, reorderTasks } = useTaskMutations();
@@ -545,7 +658,10 @@ export default function DashboardPage() {
   const [completedOpen, setCompletedOpen] = useState(false);
   const [focusTasks, setFocusTasks] = useState<Record<TaskType, string>>({} as any);
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -571,9 +687,27 @@ export default function DashboardPage() {
 
   const handleSetFocus = (taskId: string) => {
     const task = todayTasks.find((t) => t.id === taskId);
-    if (task) {
-      setFocusTasks((prev) => ({ ...prev, [task.category]: taskId }));
-    }
+    if (task) setFocusTasks((prev) => ({ ...prev, [task.category]: taskId }));
+  };
+
+  const handleAddSubtask = (taskId: string, title: string) => {
+    const task = todayTasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const newSubtask: Subtask = { id: crypto.randomUUID(), title, completed: false };
+    updateTask(taskId, { subtasks: [...(task.subtasks || []), newSubtask] });
+  };
+
+  const handleToggleSubtask = (taskId: string, subtaskId: string) => {
+    const task = todayTasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const updated = (task.subtasks || []).map((s) =>
+      s.id === subtaskId ? { ...s, completed: !s.completed } : s
+    );
+    updateTask(taskId, { subtasks: updated });
+  };
+
+  const handleReorderSubtasks = (taskId: string, subtasks: Subtask[]) => {
+    updateTask(taskId, { subtasks });
   };
 
   const handleDragEnd = (event: DragEndEvent, category: TaskType) => {
@@ -582,6 +716,7 @@ export default function DashboardPage() {
     const categoryTasks = activeTasks.filter((t) => t.category === category);
     const oldIdx = categoryTasks.findIndex((t) => t.id === active.id);
     const newIdx = categoryTasks.findIndex((t) => t.id === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
     const newOrder = arrayMove(categoryTasks, oldIdx, newIdx);
     reorderTasks(newOrder.map((t) => t.id));
   };
@@ -591,6 +726,7 @@ export default function DashboardPage() {
     if (!over || active.id === over.id) return;
     const oldIdx = habits.findIndex((h) => h.id === active.id);
     const newIdx = habits.findIndex((h) => h.id === over.id);
+    if (oldIdx === -1 || newIdx === -1) return;
     const newOrder = arrayMove(habits, oldIdx, newIdx);
     reorderHabits(newOrder.map((h) => h.id));
   };
@@ -612,7 +748,7 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-background">
       <Navbar />
       <main className={`container mx-auto max-w-7xl px-3 sm:px-4 py-4 sm:py-6 transition-all ${completedOpen ? "mr-80" : ""}`}>
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 sm:space-y-5">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
           {/* Header */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
@@ -621,53 +757,33 @@ export default function DashboardPage() {
                 {user.displayName?.split(" ")[0]}!
               </h1>
               <p className="text-default-500 text-xs">
-                {activeTasks.length} tasks · {completedTasks.length} done · {completedHabits}/{habits.length} habits
+                {activeTasks.length} active · {completedTasks.length} done · {completedHabits}/{habits.length} habits
               </p>
             </div>
             <LiveClock />
           </div>
 
-          {/* Stats Row */}
+          {/* Stats */}
           <div className="grid grid-cols-4 gap-2">
-            <Card shadow="sm">
-              <CardBody className="flex flex-row items-center gap-2 p-2.5">
-                <Target size={14} className="text-primary shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-[10px] text-default-500">Tasks</p>
-                  <p className="text-sm font-bold">{completedTasks.length}/{todayTasks.length}</p>
-                </div>
-              </CardBody>
-            </Card>
-            <Card shadow="sm">
-              <CardBody className="flex flex-row items-center gap-2 p-2.5">
-                <Flame size={14} className="text-success shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-[10px] text-default-500">Habits</p>
-                  <p className="text-sm font-bold">{completedHabits}/{habits.length}</p>
-                </div>
-              </CardBody>
-            </Card>
-            <Card shadow="sm">
-              <CardBody className="flex flex-row items-center gap-2 p-2.5">
-                <Timer size={14} className="text-warning shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-[10px] text-default-500">Pomodoro</p>
-                  <p className="text-sm font-bold">{completedPomodoros}</p>
-                </div>
-              </CardBody>
-            </Card>
-            <Card shadow="sm">
-              <CardBody className="flex flex-row items-center gap-2 p-2.5">
-                <Clock size={14} className="text-secondary shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-[10px] text-default-500">Focus</p>
-                  <p className="text-sm font-bold">{completedPomodoros * 25}m</p>
-                </div>
-              </CardBody>
-            </Card>
+            {[
+              { icon: Target, color: "text-primary", label: "Tasks", value: `${completedTasks.length}/${todayTasks.length}` },
+              { icon: Flame, color: "text-success", label: "Habits", value: `${completedHabits}/${habits.length}` },
+              { icon: Timer, color: "text-warning", label: "Pomodoro", value: `${completedPomodoros}` },
+              { icon: Clock, color: "text-secondary", label: "Focus", value: `${completedPomodoros * 25}m` },
+            ].map((stat) => (
+              <Card key={stat.label} shadow="sm">
+                <CardBody className="flex flex-row items-center gap-2 p-2.5">
+                  <stat.icon size={14} className={`${stat.color} shrink-0`} />
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-default-500">{stat.label}</p>
+                    <p className="text-sm font-bold">{stat.value}</p>
+                  </div>
+                </CardBody>
+              </Card>
+            ))}
           </div>
 
-          {/* 4-Section Grid: Work, Personal, Growth, Habit */}
+          {/* 4-Section Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {TASK_TYPES.filter((t) => t.key !== "habit").map((type) => (
               <TaskSection
@@ -677,6 +793,9 @@ export default function DashboardPage() {
                 focusTaskId={focusTasks[type.key]}
                 onToggle={handleToggleTask}
                 onSetFocus={handleSetFocus}
+                onAddSubtask={handleAddSubtask}
+                onToggleSubtask={handleToggleSubtask}
+                onReorderSubtasks={handleReorderSubtasks}
                 onDragEnd={handleDragEnd}
                 onQuickAdd={handleQuickAdd}
                 sensors={sensors}
@@ -693,7 +812,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Pomodoro Quick Access */}
+          {/* Pomodoro */}
           <Card shadow="sm">
             <CardBody className="flex flex-row items-center justify-between p-3">
               <div className="flex items-center gap-2">
@@ -708,7 +827,6 @@ export default function DashboardPage() {
         </motion.div>
       </main>
 
-      {/* Completed Tasks Sidebar */}
       <CompletedSidebar tasks={completedTasks} isOpen={completedOpen} onToggle={() => setCompletedOpen(!completedOpen)} />
     </div>
   );

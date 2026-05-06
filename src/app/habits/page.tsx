@@ -38,6 +38,7 @@ import {
   DndContext,
   closestCenter,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   DragEndEvent,
@@ -48,6 +49,7 @@ import {
   verticalListSortingStrategy,
   useSortable,
 } from "@dnd-kit/sortable";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
 import { CSS } from "@dnd-kit/utilities";
 
 const categoryOptions: { key: HabitCategory; label: string }[] = [
@@ -116,7 +118,7 @@ function SortableHabit({
       style={style}
       className="flex items-center gap-2 p-2 sm:p-3 rounded-lg border border-divider hover:border-primary/20 transition-all group mb-2 bg-content1"
     >
-      <button {...attributes} {...listeners} className="cursor-grab opacity-0 group-hover:opacity-100 shrink-0 touch-none">
+      <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing shrink-0 touch-none">
         <GripVertical size={14} className="text-default-400" />
       </button>
 
@@ -207,7 +209,10 @@ export default function HabitsPage() {
   const [formUnit, setFormUnit] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<HabitCategory | "all">("all");
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -323,7 +328,7 @@ export default function HabitsPage() {
               </CardBody>
             </Card>
           ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
               <SortableContext items={filteredHabits.map((h) => h.id)} strategy={verticalListSortingStrategy}>
                 {filteredHabits.map((habit) => {
                   const log = logs.find((l) => l.habitId === habit.id && l.date === todayDate);

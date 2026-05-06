@@ -71,14 +71,15 @@ export function useHabitLogs(habitId?: string, days: number = 30) {
     }
 
     const startDate = format(subDays(new Date(), days), "yyyy-MM-dd");
-    let constraints = [
-      where("userId", "==", user.uid),
-      where("date", ">=", startDate),
-    ];
-
+    // Equality filters must come before inequality (date >=) for Firestore composite indexes
+    let constraints = [];
     if (habitId) {
       constraints.push(where("habitId", "==", habitId));
     }
+    constraints.push(
+      where("userId", "==", user.uid),
+      where("date", ">=", startDate)
+    );
 
     const q = query(collection(db, "habitLogs"), ...constraints);
 
