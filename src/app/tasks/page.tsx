@@ -589,7 +589,7 @@ export default function TasksPage() {
             <Select
               size="sm"
               variant="bordered"
-              className="w-24"
+              className="w-32"
               aria-label="Category"
               placeholder="Category"
               selectedKeys={[filterCategory]}
@@ -602,7 +602,7 @@ export default function TasksPage() {
             <Select
               size="sm"
               variant="bordered"
-              className="w-24"
+              className="w-32"
               aria-label="Priority"
               placeholder="Priority"
               selectedKeys={[filterPriority]}
@@ -615,7 +615,7 @@ export default function TasksPage() {
             <Select
               size="sm"
               variant="bordered"
-              className="w-24"
+              className="w-32"
               aria-label="Status"
               placeholder="Status"
               selectedKeys={[filterStatus]}
