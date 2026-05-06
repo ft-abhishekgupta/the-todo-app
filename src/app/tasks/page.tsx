@@ -20,20 +20,13 @@ import {
   SelectItem,
   Textarea,
   Checkbox,
-  Dropdown,
-  DropdownTrigger,
-  DropdownMenu,
-  DropdownItem,
   Progress,
 } from "@nextui-org/react";
 import { motion } from "framer-motion";
 import {
   Plus,
   Search,
-  MoreVertical,
   Trash2,
-  Edit,
-  ArrowRight,
   GripVertical,
   ChevronDown,
   ChevronRight as ChevronRightIcon,
@@ -162,8 +155,6 @@ function SortableTask({
   task,
   onToggle,
   onEdit,
-  onDelete,
-  onMoveNext,
   onAddSubtask,
   onToggleSubtask,
   onReorderSubtasks,
@@ -173,8 +164,6 @@ function SortableTask({
   task: Task;
   onToggle: () => void;
   onEdit: () => void;
-  onDelete: () => void;
-  onMoveNext: () => void;
   onAddSubtask: (taskId: string, title: string) => void;
   onToggleSubtask: (taskId: string, subtaskId: string) => void;
   onReorderSubtasks: (taskId: string, subtasks: Subtask[]) => void;
@@ -235,13 +224,13 @@ function SortableTask({
       style={style}
       {...attributes}
       {...listeners}
-      className="bg-content1 border border-divider hover:border-primary/30 rounded-lg transition-all mb-2 cursor-grab active:cursor-grabbing touch-none"
-      onDoubleClick={onEdit}
+      className="bg-content1 border border-divider hover:border-primary/30 rounded-lg transition-all mb-1.5 cursor-grab active:cursor-grabbing touch-none"
+      onContextMenu={(e) => { e.preventDefault(); onEdit(); }}
     >
-      <div className="flex items-start gap-2 p-2 group">
+      <div className="flex items-center gap-1.5 px-2 py-1.5 group">
         {/* Checkbox - blocked shows indeterminate */}
         <div
-          className={`w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer shrink-0 mt-0.5 ${
+          className={`w-3.5 h-3.5 rounded border-2 flex items-center justify-center cursor-pointer shrink-0 ${
             task.status === "completed"
               ? "bg-success border-success"
               : task.status === "blocked"
@@ -251,14 +240,20 @@ function SortableTask({
           onClick={(e) => { e.stopPropagation(); onToggle(); }}
         >
           {task.status === "completed" && (
-            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
             </svg>
           )}
           {task.status === "blocked" && (
-            <div className="w-2 h-0.5 bg-warning rounded" />
+            <div className="w-1.5 h-0.5 bg-warning rounded" />
           )}
         </div>
+        {/* Priority dot */}
+        <div
+          className={`w-2 h-2 rounded-full cursor-pointer shrink-0 ${priorityDotColors[task.priority]}`}
+          onClick={(e) => { e.stopPropagation(); onTogglePriority(task.id, task.priority); }}
+          title={`${task.priority} (click to change)`}
+        />
         <div className="flex-1 min-w-0" onClick={handleTitleClick}>
           {isEditingTitle ? (
             <Input
@@ -271,57 +266,30 @@ function SortableTask({
                 if (e.key === "Enter") handleTitleSave();
                 if (e.key === "Escape") setIsEditingTitle(false);
               }}
-              classNames={{ inputWrapper: "border-1 h-6 min-h-6", input: "text-xs" }}
+              classNames={{ inputWrapper: "border-1 h-5 min-h-5", input: "text-[11px]" }}
               autoFocus
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <p className={`text-xs sm:text-sm font-medium truncate cursor-text ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
+            <p className={`text-[11px] sm:text-xs font-medium truncate cursor-text ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
               {task.title}
             </p>
           )}
-          <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-            {/* Priority dot - clickable to toggle */}
-            <div
-              className={`w-2.5 h-2.5 rounded-full cursor-pointer ${priorityDotColors[task.priority]}`}
-              onClick={(e) => { e.stopPropagation(); onTogglePriority(task.id, task.priority); }}
-              title={`Priority: ${task.priority} (click to change)`}
-            />
-            <Chip size="sm" variant="flat" className="h-4 text-[10px]">{task.category}</Chip>
-            {subtasks.length > 0 && (
-              <span className="text-[10px] text-default-400">{completedSubs}/{subtasks.length}</span>
-            )}
-            {task.deadline && (
-              <span className="text-[10px] text-default-400">📅 {format(task.deadline.toDate(), "MMM d")}</span>
-            )}
-          </div>
-          {subtasks.length > 0 && (
-            <Progress size="sm" value={(completedSubs / subtasks.length) * 100} color="primary" className="mt-1 max-w-[100px]" />
-          )}
         </div>
-        <div className="flex items-center shrink-0">
+        <div className="flex items-center gap-0.5 shrink-0">
+          {subtasks.length > 0 && (
+            <span className="text-[9px] text-default-400">{completedSubs}/{subtasks.length}</span>
+          )}
           <Button
             isIconOnly
             size="sm"
             variant="light"
-            className="opacity-0 group-hover:opacity-100 w-5 h-5 min-w-5"
+            className="opacity-0 group-hover:opacity-100 w-4 h-4 min-w-4"
             onPress={() => setAddingSubtask(!addingSubtask)}
             title="Add subtask"
           >
-            <Plus size={10} />
+            <Plus size={9} />
           </Button>
-          <Dropdown>
-            <DropdownTrigger>
-              <Button isIconOnly size="sm" variant="light" className="opacity-0 group-hover:opacity-100 w-5 h-5 min-w-5 shrink-0">
-                <MoreVertical size={12} />
-              </Button>
-            </DropdownTrigger>
-            <DropdownMenu aria-label="Task actions">
-              <DropdownItem key="edit" startContent={<Edit size={12} />} onPress={onEdit}>Edit</DropdownItem>
-              <DropdownItem key="next" startContent={<ArrowRight size={12} />} onPress={onMoveNext}>Move to next day</DropdownItem>
-              <DropdownItem key="delete" color="danger" startContent={<Trash2 size={12} />} onPress={onDelete}>Delete</DropdownItem>
-            </DropdownMenu>
-          </Dropdown>
         </div>
       </div>
 
@@ -378,6 +346,7 @@ export default function TasksPage() {
   const [filterCategory, setFilterCategory] = useState<TaskCategory | "all">("all");
   const [filterPriority, setFilterPriority] = useState<TaskPriority | "all">("all");
   const [filterStatus, setFilterStatus] = useState<TaskStatus | "all">("all");
+  const [quickAddTitle, setQuickAddTitle] = useState("");
 
   const [formTitle, setFormTitle] = useState("");
   const [formDescription, setFormDescription] = useState("");
@@ -540,6 +509,20 @@ export default function TasksPage() {
     updateTask(taskId, { priority: next });
   };
 
+  const handleQuickAdd = async () => {
+    if (!quickAddTitle.trim()) return;
+    await addTask({
+      title: quickAddTitle.trim(),
+      status: "not_started",
+      priority: "medium",
+      category: "work",
+      tags: [],
+      subtasks: [],
+      scheduledDate: Timestamp.fromDate(new Date()),
+    });
+    setQuickAddTitle("");
+  };
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over) return;
@@ -591,37 +574,24 @@ export default function TasksPage() {
       <Navbar />
       <main className="container mx-auto max-w-full px-3 sm:px-4 py-4 sm:py-6">
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-4">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-            <div>
-              <h1 className="text-xl sm:text-2xl font-bold">Tasks</h1>
-              <p className="text-default-500 text-xs">
-                {tasks.length} total · {tasks.filter((t) => t.status === "completed").length} done
-              </p>
-            </div>
-            <div className="flex gap-2 w-full sm:w-auto">
-              <Input
-                placeholder="Search..."
-                value={searchQuery}
-                onValueChange={setSearchQuery}
-                startContent={<Search size={14} className="text-default-400" />}
-                variant="bordered"
-                size="sm"
-                className="flex-1 sm:w-48"
-              />
-              <Button color="primary" size="sm" startContent={<Plus size={16} />} onPress={() => openCreateModal("today")}>
-                Add
-              </Button>
-            </div>
-          </div>
-
-          {/* Filters - always visible */}
+          {/* Header with search, filters, and quick add in one row */}
           <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-lg font-bold mr-1">Tasks</h1>
+            <Input
+              placeholder="Search..."
+              value={searchQuery}
+              onValueChange={setSearchQuery}
+              startContent={<Search size={12} className="text-default-400" />}
+              variant="bordered"
+              size="sm"
+              className="w-32 sm:w-40"
+            />
             <Select
               size="sm"
               variant="bordered"
-              className="w-28"
-              label="Category"
+              className="w-24"
+              aria-label="Category"
+              placeholder="Category"
               selectedKeys={[filterCategory]}
               onSelectionChange={(k) => setFilterCategory(Array.from(k)[0] as TaskCategory | "all")}
             >
@@ -632,8 +602,9 @@ export default function TasksPage() {
             <Select
               size="sm"
               variant="bordered"
-              className="w-28"
-              label="Priority"
+              className="w-24"
+              aria-label="Priority"
+              placeholder="Priority"
               selectedKeys={[filterPriority]}
               onSelectionChange={(k) => setFilterPriority(Array.from(k)[0] as TaskPriority | "all")}
             >
@@ -644,8 +615,9 @@ export default function TasksPage() {
             <Select
               size="sm"
               variant="bordered"
-              className="w-28"
-              label="Status"
+              className="w-24"
+              aria-label="Status"
+              placeholder="Status"
               selectedKeys={[filterStatus]}
               onSelectionChange={(k) => setFilterStatus(Array.from(k)[0] as TaskStatus | "all")}
             >
@@ -656,15 +628,32 @@ export default function TasksPage() {
             {(filterCategory !== "all" || filterPriority !== "all" || filterStatus !== "all") && (
               <Button
                 size="sm"
+                isIconOnly
                 variant="light"
                 color="danger"
-                startContent={<X size={12} />}
                 onPress={() => { setFilterCategory("all"); setFilterPriority("all"); setFilterStatus("all"); }}
               >
-                Clear
+                <X size={12} />
               </Button>
             )}
-            <span className="text-xs text-default-400 ml-auto">{filteredTasks.length} tasks</span>
+            <span className="text-[10px] text-default-400">{filteredTasks.length}</span>
+          </div>
+
+          {/* Quick Add */}
+          <div className="flex gap-2">
+            <Input
+              placeholder="Quick add task... (Enter to add)"
+              value={quickAddTitle}
+              onValueChange={setQuickAddTitle}
+              onKeyDown={(e) => e.key === "Enter" && handleQuickAdd()}
+              variant="bordered"
+              size="sm"
+              startContent={<Plus size={14} className="text-default-400" />}
+              className="flex-1"
+            />
+            <Button color="primary" size="sm" onPress={() => openCreateModal("today")}>
+              + Detailed
+            </Button>
           </div>
 
           {/* 5 Columns in One Row */}
@@ -705,8 +694,6 @@ export default function TasksPage() {
                                 task={task}
                                 onToggle={() => updateTask(task.id, { status: task.status === "completed" ? "not_started" : "completed" })}
                                 onEdit={() => openEditModal(task)}
-                                onDelete={() => deleteTask(task.id)}
-                                onMoveNext={() => moveToNextDay(task.id, task.scheduledDate?.toDate() || new Date())}
                                 onAddSubtask={handleAddSubtaskInline}
                                 onToggleSubtask={handleToggleSubtask}
                                 onReorderSubtasks={handleReorderSubtasks}
