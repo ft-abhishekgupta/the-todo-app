@@ -12,8 +12,8 @@ test.describe("App Navigation & Pages", () => {
 
   test("login page renders correctly", async ({ page }) => {
     await page.goto("/login");
-    await expect(page.locator("text=Productivo")).toBeVisible();
-    await expect(page.locator("text=Google")).toBeVisible();
+    await expect(page.locator("text=TheTodoApp").first()).toBeVisible();
+    await expect(page.locator("text=/google/i").first()).toBeVisible();
   });
 
   test("login page has Google sign-in button", async ({ page }) => {
@@ -24,7 +24,16 @@ test.describe("App Navigation & Pages", () => {
 });
 
 test.describe("Page Loading (unauthenticated redirects)", () => {
-  const pages = ["/dashboard", "/tasks", "/habits", "/pomodoro", "/calendar", "/projects", "/settings"];
+  const pages = [
+    "/dashboard",
+    "/tasks",
+    "/projects",
+    "/habits",
+    "/schedule",
+    "/calendar",
+    "/pomodoro",
+    "/settings",
+  ];
 
   for (const path of pages) {
     test(`${path} loads without crashing`, async ({ page }) => {

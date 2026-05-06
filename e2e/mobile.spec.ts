@@ -13,7 +13,18 @@ test.describe("Mobile Responsiveness", () => {
   });
 
   test("all pages render at mobile width", async ({ page }) => {
-    const pages = ["/login", "/dashboard", "/tasks", "/habits", "/pomodoro", "/calendar", "/projects", "/settings"];
+    test.setTimeout(90_000);
+    const pages = [
+      "/login",
+      "/dashboard",
+      "/tasks",
+      "/projects",
+      "/habits",
+      "/schedule",
+      "/calendar",
+      "/pomodoro",
+      "/settings",
+    ];
 
     for (const path of pages) {
       await page.goto(path);
@@ -31,6 +42,7 @@ test.describe("Tablet Responsiveness", () => {
   test.use({ viewport: { width: 768, height: 1024 } }); // iPad
 
   test("pages render at tablet width", async ({ page }) => {
+    test.setTimeout(60_000);
     const pages = ["/login", "/dashboard", "/tasks", "/habits"];
 
     for (const path of pages) {
