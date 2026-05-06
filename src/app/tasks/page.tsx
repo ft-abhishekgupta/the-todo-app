@@ -76,11 +76,10 @@ const priorityOptions: { key: TaskPriority; label: string; color: "default" | "p
 ];
 
 const categoryOptions: { key: TaskCategory; label: string }[] = [
-  { key: "work_projects", label: "Work" },
-  { key: "personal_projects", label: "Personal" },
-  { key: "habits", label: "Habits" },
-  { key: "personal_work", label: "Personal Work" },
-  { key: "chores", label: "Chores" },
+  { key: "work", label: "Work" },
+  { key: "personal", label: "Personal" },
+  { key: "growth", label: "Growth" },
+  { key: "habit", label: "Habit" },
 ];
 
 type ColumnKey = "overdue" | "yesterday" | "today" | "tomorrow" | "later" | "unscheduled";
@@ -203,7 +202,7 @@ export default function TasksPage() {
   const [formDescription, setFormDescription] = useState("");
   const [formStatus, setFormStatus] = useState<TaskStatus>("not_started");
   const [formPriority, setFormPriority] = useState<TaskPriority>("medium");
-  const [formCategory, setFormCategory] = useState<TaskCategory>("personal_work");
+  const [formCategory, setFormCategory] = useState<TaskCategory>("work");
   const [formDeadline, setFormDeadline] = useState("");
   const [formScheduledDate, setFormScheduledDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [formTags, setFormTags] = useState("");
@@ -279,7 +278,7 @@ export default function TasksPage() {
     setFormDescription("");
     setFormStatus("not_started");
     setFormPriority("medium");
-    setFormCategory("personal_work");
+    setFormCategory("work");
     setFormDeadline("");
     setFormScheduledDate(format(new Date(), "yyyy-MM-dd"));
     setFormTags("");

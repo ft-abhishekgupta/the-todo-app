@@ -3,12 +3,17 @@ import { Timestamp } from "firebase/firestore";
 // Task Types
 export type TaskStatus = "not_started" | "started" | "completed" | "blocked";
 export type TaskPriority = "low" | "medium" | "high" | "urgent";
-export type TaskCategory =
-  | "work_projects"
-  | "personal_projects"
-  | "habits"
-  | "personal_work"
-  | "chores";
+
+export type TaskType = "work" | "personal" | "growth" | "habit";
+
+export type WorkSubtype = "project_task" | "general_task" | "chores";
+export type PersonalSubtype = "general_task" | "project_task" | "chores" | "social";
+export type GrowthSubtype = "professional_learning" | "personal_learning" | "improvement";
+
+export type TaskSubtype = WorkSubtype | PersonalSubtype | GrowthSubtype;
+
+// Keep TaskCategory as an alias for backward compatibility
+export type TaskCategory = TaskType;
 
 export type RecurrenceRule = {
   type: "daily" | "weekly" | "monthly" | "custom";
@@ -25,6 +30,7 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   category: TaskCategory;
+  subtype?: TaskSubtype;
   projectId?: string;
   deadline?: Timestamp;
   scheduledDate?: Timestamp;
@@ -32,6 +38,7 @@ export interface Task {
   tags: string[];
   notes?: string;
   subtasks: Subtask[];
+  isFocus?: boolean;
   order: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
