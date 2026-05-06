@@ -37,6 +37,8 @@ import {
   GripVertical,
   ChevronDown,
   ChevronRight as ChevronRightIcon,
+  Filter,
+  X,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { useTasks, useTaskMutations } from "@/hooks/use-tasks";
@@ -297,6 +299,10 @@ export default function TasksPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [collapsedColumns, setCollapsedColumns] = useState<Set<ColumnKey>>(new Set());
+  const [filterCategory, setFilterCategory] = useState<TaskCategory | "all">("all");
+  const [filterPriority, setFilterPriority] = useState<TaskPriority | "all">("all");
+  const [filterStatus, setFilterStatus] = useState<TaskStatus | "all">("all");
+  const [showFilters, setShowFilters] = useState(false);
 
   const [formTitle, setFormTitle] = useState("");
   const [formDescription, setFormDescription] = useState("");
@@ -321,9 +327,21 @@ export default function TasksPage() {
   }, [user, loading, router]);
 
   const filteredTasks = useMemo(() => {
-    if (!searchQuery) return tasks;
-    return tasks.filter((t) => t.title.toLowerCase().includes(searchQuery.toLowerCase()));
-  }, [tasks, searchQuery]);
+    let result = tasks;
+    if (searchQuery) {
+      result = result.filter((t) => t.title.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    if (filterCategory !== "all") {
+      result = result.filter((t) => t.category === filterCategory);
+    }
+    if (filterPriority !== "all") {
+      result = result.filter((t) => t.priority === filterPriority);
+    }
+    if (filterStatus !== "all") {
+      result = result.filter((t) => t.status === filterStatus);
+    }
+    return result;
+  }, [tasks, searchQuery, filterCategory, filterPriority, filterStatus]);
 
   const tasksByColumn = useMemo(() => {
     const grouped: Record<ColumnKey, Task[]> = { past: [], yesterday: [], today: [], tomorrow: [], future: [] };
@@ -473,11 +491,74 @@ export default function TasksPage() {
                 size="sm"
                 className="flex-1 sm:w-48"
               />
+              <Button
+                size="sm"
+                variant={showFilters ? "flat" : "bordered"}
+                color={showFilters || filterCategory !== "all" || filterPriority !== "all" || filterStatus !== "all" ? "primary" : "default"}
+                startContent={<Filter size={14} />}
+                onPress={() => setShowFilters(!showFilters)}
+              >
+                Filter
+              </Button>
               <Button color="primary" size="sm" startContent={<Plus size={16} />} onPress={() => openCreateModal("today")}>
                 Add
               </Button>
             </div>
           </div>
+
+          {/* Filters */}
+          {showFilters && (
+            <div className="flex flex-wrap items-center gap-2 p-3 rounded-lg bg-content2/50 border border-divider">
+              <Select
+                size="sm"
+                variant="bordered"
+                className="w-28"
+                label="Category"
+                selectedKeys={[filterCategory]}
+                onSelectionChange={(k) => setFilterCategory(Array.from(k)[0] as TaskCategory | "all")}
+              >
+                {[{ key: "all", label: "All" }, ...categoryOptions].map((c) => (
+                  <SelectItem key={c.key}>{c.label}</SelectItem>
+                ))}
+              </Select>
+              <Select
+                size="sm"
+                variant="bordered"
+                className="w-28"
+                label="Priority"
+                selectedKeys={[filterPriority]}
+                onSelectionChange={(k) => setFilterPriority(Array.from(k)[0] as TaskPriority | "all")}
+              >
+                {[{ key: "all", label: "All" }, ...priorityOptions].map((c) => (
+                  <SelectItem key={c.key}>{c.label}</SelectItem>
+                ))}
+              </Select>
+              <Select
+                size="sm"
+                variant="bordered"
+                className="w-28"
+                label="Status"
+                selectedKeys={[filterStatus]}
+                onSelectionChange={(k) => setFilterStatus(Array.from(k)[0] as TaskStatus | "all")}
+              >
+                {[{ key: "all", label: "All" }, ...statusOptions].map((c) => (
+                  <SelectItem key={c.key}>{c.label}</SelectItem>
+                ))}
+              </Select>
+              {(filterCategory !== "all" || filterPriority !== "all" || filterStatus !== "all") && (
+                <Button
+                  size="sm"
+                  variant="light"
+                  color="danger"
+                  startContent={<X size={12} />}
+                  onPress={() => { setFilterCategory("all"); setFilterPriority("all"); setFilterStatus("all"); }}
+                >
+                  Clear
+                </Button>
+              )}
+              <span className="text-xs text-default-400 ml-auto">{filteredTasks.length} tasks</span>
+            </div>
+          )}
 
           {/* 5 Columns in One Row */}
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
