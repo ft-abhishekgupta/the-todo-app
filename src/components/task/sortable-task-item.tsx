@@ -210,7 +210,6 @@ export function SortableTaskItem({
                 {task.title}
               </span>
               {projectName && <span className="text-[9px] text-default-400 shrink-0">· {projectName}</span>}
-              {isFocused && <Star size={10} className="text-primary shrink-0 fill-primary" />}
             </div>
           )}
           {subtasks.length > 0 && (
@@ -231,16 +230,16 @@ export function SortableTaskItem({
           >
             <Plus size={10} />
           </Button>
-          {onSetFocus && !isFocused && task.status !== "completed" && (
+          {onSetFocus && task.status !== "completed" && (
             <Button
               isIconOnly
               size="sm"
               variant="light"
-              className="opacity-0 group-hover:opacity-100 w-5 h-5 min-w-5"
+              className={`w-5 h-5 min-w-5 transition-opacity ${isFocused ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
               onPress={() => onSetFocus(task.id)}
-              title="Set as focus"
+              title={isFocused ? "Remove from focus" : "Set as focus"}
             >
-              <Star size={10} />
+              <Star size={10} className={isFocused ? "text-primary fill-primary" : ""} />
             </Button>
           )}
           <div

@@ -886,31 +886,20 @@ export default function DashboardPage() {
 
           {/* Focus Tasks Row */}
           {(() => {
-            // Explicit user picks first (in selection order); fall back to
-            // legacy auto-pick (one per section) only when no explicit picks
-            // have been made yet.
-            let focusItems: { type: typeof TASK_TYPES[number]; task: Task }[];
-            if (focusTaskIds.length > 0) {
-              focusItems = focusTaskIds
-                .map((id) => activeTasks.find((t) => t.id === id))
-                .filter(Boolean)
-                .map((task) => {
-                  const t = task as Task;
-                  const type = TASK_TYPES.find((tt) => tt.key === t.category);
-                  return type ? { type, task: t } : null;
-                })
-                .filter(Boolean) as { type: typeof TASK_TYPES[number]; task: Task }[];
-            } else {
-              focusItems = TASK_TYPES.filter((t) => t.key !== "habit").map((type) => {
-                const catTasks = activeTasks.filter((t) => t.category === type.key);
-                const auto = catTasks.find((t) => t.priority === "high") || catTasks[0];
-                return auto ? { type, task: auto } : null;
-              }).filter(Boolean) as { type: typeof TASK_TYPES[number]; task: Task }[];
-            }
+            // Show only explicitly-focused tasks (in selection order). When no
+            // tasks are focused the row is hidden unless a focus habit exists.
+            const focusItems = focusTaskIds
+              .map((id) => activeTasks.find((t) => t.id === id))
+              .filter(Boolean)
+              .map((task) => {
+                const t = task as Task;
+                const type = TASK_TYPES.find((tt) => tt.key === t.category);
+                return type ? { type, task: t } : null;
+              })
+              .filter(Boolean) as { type: typeof TASK_TYPES[number]; task: Task }[];
 
-            const focusHabit = focusHabitId
-              ? habits.find((h) => h.id === focusHabitId)
-              : habits.find((h) => !logs.some((l) => l.habitId === h.id && l.date === todayDate && l.completed)) || habits[0];
+            // Only show a focus habit if the user explicitly picked one.
+            const focusHabit = focusHabitId ? habits.find((h) => h.id === focusHabitId) : undefined;
 
             if (focusItems.length === 0 && !focusHabit) return null;
 
@@ -928,7 +917,7 @@ export default function DashboardPage() {
                       const nextSub = task.subtasks?.find((s) => !s.completed);
                       return (
                         <div
-                          key={type.key}
+                          key={task.id}
                           className="p-2 rounded-lg bg-primary/5 border border-primary/20 hover:bg-primary/10 cursor-pointer"
                           onClick={() => handleOpenEditModal(task)}
                           title="Click to edit"
