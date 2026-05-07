@@ -577,6 +577,14 @@ export default function DashboardPage() {
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const { isOpen: isEditModalOpen, onOpen: onEditModalOpen, onOpenChange: onEditModalOpenChange } = useDisclosure();
 
+  // Tick once per minute so the schedule's "now" marker re-renders without
+  // requiring the user to interact with the page.
+  const [nowTick, setNowTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setNowTick((n) => n + 1), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
   const projectsMap = useMemo(() => {
     const map: Record<string, string> = {};
     projects.forEach((p) => { map[p.id] = p.name; });
