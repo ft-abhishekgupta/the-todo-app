@@ -72,10 +72,10 @@ export function Navbar() {
 
   if (!user) return null;
 
-  // Fullscreen mode: just show a small floating exit button in the top-right.
+  // Fullscreen mode: show a small floating exit button + quick-add in the top-right.
   if (fullscreen) {
     return (
-      <div className="fixed top-2 right-2 z-50">
+      <div className="fixed top-2 right-2 z-50 flex flex-col gap-1.5 items-end">
         <Tooltip content="Exit fullscreen" placement="bottom-end">
           <Button
             isIconOnly
@@ -87,6 +87,7 @@ export function Navbar() {
             <Minimize2 size={16} />
           </Button>
         </Tooltip>
+        <QuickAddToList iconOnly />
       </div>
     );
   }
