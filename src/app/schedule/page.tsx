@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/providers/auth-provider";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import {
   Card,
   CardBody,
@@ -45,6 +45,7 @@ const EVENT_TYPES = [
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const PX_PER_MIN = 1; // 1px per minute = 60px per hour
 const TIMELINE_HEIGHT = 24 * 60 * PX_PER_MIN;
+const EMPTY_ID_SET: ReadonlySet<string> = new Set();
 
 function getEventColor(type: string) {
   return EVENT_TYPES.find((t) => t.key === type)?.color || "bg-blue-500";
@@ -67,26 +68,44 @@ function snapTo5(mins: number): number {
 
 // Renders a single day's vertical timeline column (no hour labels — those live in the shared gutter).
 // Owns its own Firestore listener via useSchedule(date) and its own drag-to-create state.
+// Event move/duplicate/delete is coordinated by the parent via callbacks because dragging an
+// event across columns (week view) requires a shared drag session at parent level.
 function DayTimeline({
   date,
   timeFmt,
   compact,
+  hiddenEventIds,
+  suppressHover,
+  registerColumn,
   onCreate,
   onEdit,
-  onDelete,
+  onEventPointerDown,
+  onEventContextMenu,
 }: {
   date: string;
   timeFmt: "12h" | "24h";
   compact: boolean;
+  hiddenEventIds: ReadonlySet<string>;
+  suppressHover: boolean;
+  registerColumn: (date: string, el: HTMLDivElement | null) => void;
   onCreate: (date: string, startMin: number, endMin: number) => void;
   onEdit: (event: ScheduleEvent) => void;
-  onDelete: (id: string) => void;
+  onEventPointerDown: (event: ScheduleEvent, e: React.PointerEvent) => void;
+  onEventContextMenu: (event: ScheduleEvent, e: React.MouseEvent) => void;
 }) {
   const { events } = useSchedule(date);
   const contentRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState<number | null>(null);
   const [dragEnd, setDragEnd] = useState<number | null>(null);
+  const [hoverMin, setHoverMin] = useState<number | null>(null);
+
+  // Register this column's element with the parent so the parent can hit-test
+  // pointer position against day columns during cross-column event drags.
+  useEffect(() => {
+    registerColumn(date, contentRef.current);
+    return () => registerColumn(date, null);
+  }, [date, registerColumn]);
 
   const isToday = date === format(new Date(), "yyyy-MM-dd");
   const [nowMinutes, setNowMinutes] = useState(() => {
@@ -105,7 +124,6 @@ function DayTimeline({
   const getMinutesFromY = (clientY: number): number => {
     if (!contentRef.current) return 0;
     const rect = contentRef.current.getBoundingClientRect();
-    // rect.top already accounts for scroll position (content is inside an outer scroll container).
     const y = clientY - rect.top;
     return snapTo5(Math.max(0, Math.min(24 * 60 - 5, Math.floor(y / PX_PER_MIN))));
   };
@@ -118,12 +136,28 @@ function DayTimeline({
     setIsDragging(true);
     setDragStart(mins);
     setDragEnd(mins + 30);
+    setHoverMin(null);
   };
 
   const handlePointerMove = (e: React.PointerEvent) => {
-    if (!isDragging || dragStart === null) return;
-    const mins = getMinutesFromY(e.clientY);
-    setDragEnd(Math.max(dragStart + 5, mins));
+    if (isDragging && dragStart !== null) {
+      const mins = getMinutesFromY(e.clientY);
+      setDragEnd(Math.max(dragStart + 5, mins));
+      return;
+    }
+    if (suppressHover) {
+      if (hoverMin !== null) setHoverMin(null);
+      return;
+    }
+    if ((e.target as HTMLElement).closest("[data-event]")) {
+      if (hoverMin !== null) setHoverMin(null);
+      return;
+    }
+    setHoverMin(getMinutesFromY(e.clientY));
+  };
+
+  const handlePointerLeave = () => {
+    setHoverMin(null);
   };
 
   const handlePointerUp = (e: React.PointerEvent) => {
@@ -151,6 +185,8 @@ function DayTimeline({
     return { top: start * PX_PER_MIN, height: (end - start) * PX_PER_MIN, start, end };
   })();
 
+  const showHover = hoverMin !== null && !isDragging && !suppressHover;
+
   return (
     <div
       ref={contentRef}
@@ -160,6 +196,7 @@ function DayTimeline({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
+      onPointerLeave={handlePointerLeave}
     >
       {/* Hour grid lines */}
       {HOURS.map((hour) => (
@@ -193,6 +230,21 @@ function DayTimeline({
         </div>
       )}
 
+      {/* 5-min hover preview */}
+      {showHover && (
+        <div
+          className="absolute left-0 right-0 z-10 pointer-events-none"
+          style={{ top: `${hoverMin! * PX_PER_MIN}px` }}
+        >
+          <div className="flex items-center">
+            <span className="text-[9px] font-semibold text-primary bg-background/90 px-1 rounded-sm tabular-nums -ml-1">
+              {formatTimeStr(minutesToTime(hoverMin!), timeFmt)}
+            </span>
+            <div className="flex-1 h-px bg-primary/60 border-t border-dashed border-primary/60" />
+          </div>
+        </div>
+      )}
+
       {/* Drag preview */}
       {isDragging && dragPreview && (
         <div
@@ -207,7 +259,7 @@ function DayTimeline({
 
       {/* Events */}
       <div className="absolute left-1 right-1 top-0 bottom-0">
-        {events.map((event) => {
+        {events.filter((event) => !hiddenEventIds.has(event.id)).map((event) => {
           const startMins = timeToMinutes(event.startTime);
           const endMins = timeToMinutes(event.endTime);
           const top = startMins * PX_PER_MIN;
@@ -216,30 +268,24 @@ function DayTimeline({
             <div
               key={event.id}
               data-event
-              className={`absolute left-0 right-0 rounded-md px-1.5 py-0.5 cursor-pointer border border-white/20 overflow-hidden group ${getEventColor(event.type)} text-white z-20`}
+              className={`absolute left-0 right-0 rounded-md px-1.5 py-0.5 border border-white/20 overflow-hidden group ${getEventColor(event.type)} text-white z-20 cursor-grab active:cursor-grabbing`}
               style={{ top: `${top}px`, height: `${height}px` }}
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
+              onPointerDown={(e) => {
                 e.stopPropagation();
-                onEdit(event);
+                if (e.button !== 0) return;
+                onEventPointerDown(event, e);
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onEventContextMenu(event, e);
               }}
             >
-              <div className="flex items-center justify-between gap-1">
+              <div className="flex items-center justify-between gap-1 pointer-events-none">
                 <span className="text-xs font-medium truncate">{event.title}</span>
-                {!compact && (
-                  <Button
-                    isIconOnly
-                    size="sm"
-                    variant="light"
-                    className="opacity-0 group-hover:opacity-100 h-5 w-5 min-w-5 text-white"
-                    onPress={() => onDelete(event.id)}
-                  >
-                    <Trash2 size={10} />
-                  </Button>
-                )}
               </div>
               {height >= 24 && (
-                <span className="text-[10px] opacity-80 block truncate">
+                <span className="text-[10px] opacity-80 block truncate pointer-events-none">
                   {formatTimeStr(event.startTime, timeFmt)} - {formatTimeStr(event.endTime, timeFmt)}
                 </span>
               )}
@@ -269,6 +315,139 @@ export default function SchedulePage() {
   const [formDate, setFormDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [editingEvent, setEditingEvent] = useState<ScheduleEvent | null>(null);
   const [dupTargetDate, setDupTargetDate] = useState(format(addDays(new Date(), 1), "yyyy-MM-dd"));
+
+  // Cross-column event drag (move) coordination ----------------------------------
+  type DragSession = {
+    event: ScheduleEvent;
+    durationMin: number;
+    pointerStartX: number;
+    pointerStartY: number;
+    pointerOffsetMin: number; // pointer offset (mins) inside event at drag start
+    started: boolean;
+    currentTopMin: number;
+    currentDate: string;
+  };
+  const columnRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const dragSessionRef = useRef<DragSession | null>(null);
+  const [dragSnapshot, setDragSnapshot] = useState<{
+    eventId: string;
+    title: string;
+    type: ScheduleEvent["type"];
+    topMin: number;
+    durationMin: number;
+    date: string;
+  } | null>(null);
+  const [contextMenu, setContextMenu] = useState<{
+    event: ScheduleEvent;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  const registerColumn = useCallback((d: string, el: HTMLDivElement | null) => {
+    if (el) columnRefs.current.set(d, el);
+    else columnRefs.current.delete(d);
+  }, []);
+
+  // Refs used by global pointer listeners so they always see the latest functions
+  // without re-attaching window listeners on every render.
+  const handlersRef = useRef<{
+    openEdit: (e: ScheduleEvent) => void;
+    updateEvent: typeof updateEvent;
+  }>({ openEdit: () => {}, updateEvent });
+
+  useEffect(() => {
+    const onPointerMove = (e: PointerEvent) => {
+      const s = dragSessionRef.current;
+      if (!s) return;
+      if (!s.started) {
+        const dx = e.clientX - s.pointerStartX;
+        const dy = e.clientY - s.pointerStartY;
+        if (dx * dx + dy * dy < 16) return; // 4px threshold
+        s.started = true;
+      }
+      // Determine target date column by hit-testing clientX against registered columns.
+      let targetDate: string | null = null;
+      let targetRect: DOMRect | null = null;
+      columnRefs.current.forEach((el, d) => {
+        const r = el.getBoundingClientRect();
+        if (e.clientX >= r.left && e.clientX <= r.right) {
+          targetDate = d;
+          targetRect = r;
+        }
+      });
+      // If pointer is outside all columns, retain last valid target.
+      const refRect: DOMRect | undefined =
+        targetRect ?? columnRefs.current.get(s.currentDate)?.getBoundingClientRect();
+      if (!refRect) return;
+      if (targetDate) s.currentDate = targetDate;
+      const rawTopMin = (e.clientY - refRect.top) / PX_PER_MIN - s.pointerOffsetMin;
+      const maxTop = 24 * 60 - s.durationMin;
+      const snapped = Math.max(0, Math.min(maxTop, snapTo5(rawTopMin)));
+      s.currentTopMin = snapped;
+      setDragSnapshot({
+        eventId: s.event.id,
+        title: s.event.title,
+        type: s.event.type,
+        topMin: snapped,
+        durationMin: s.durationMin,
+        date: s.currentDate,
+      });
+    };
+    const onPointerUp = () => {
+      const s = dragSessionRef.current;
+      if (!s) return;
+      dragSessionRef.current = null;
+      if (!s.started) {
+        setDragSnapshot(null);
+        handlersRef.current.openEdit(s.event);
+        return;
+      }
+      const newStart = s.currentTopMin;
+      const newEnd = s.currentTopMin + s.durationMin;
+      // Only commit if something actually changed
+      const startTimeStr = minutesToTime(newStart);
+      const endTimeStr = minutesToTime(newEnd);
+      if (
+        startTimeStr !== s.event.startTime ||
+        endTimeStr !== s.event.endTime ||
+        s.currentDate !== s.event.date
+      ) {
+        handlersRef.current.updateEvent(s.event.id, {
+          date: s.currentDate,
+          startTime: startTimeStr,
+          endTime: endTimeStr,
+        });
+      }
+      setDragSnapshot(null);
+    };
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
+    return () => {
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+    };
+  }, []);
+
+  // Close context menu on outside click or Escape.
+  useEffect(() => {
+    if (!contextMenu) return;
+    const onMouseDown = (e: MouseEvent) => {
+      const el = e.target as HTMLElement;
+      if (el.closest("[data-context-menu]")) return;
+      setContextMenu(null);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setContextMenu(null);
+    };
+    window.addEventListener("mousedown", onMouseDown, true);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onMouseDown, true);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [contextMenu]);
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -350,14 +529,81 @@ export default function SchedulePage() {
     onOpenChange();
   };
 
-  const handleDelete = async (id: string) => {
-    await deleteEvent(id);
-  };
-
   const handleDuplicate = async () => {
     await duplicateSchedule(selectedDate, dupTargetDate);
     onDupOpenChange();
   };
+
+  // Begin moving an event (pointerdown). The actual drag math runs from the
+  // window-level pointer listeners installed once at mount.
+  const handleEventPointerDown = (event: ScheduleEvent, e: React.PointerEvent) => {
+    if (isOpen || isDupOpen) return;
+    const colEl = columnRefs.current.get(event.date);
+    if (!colEl) return;
+    const colRect = colEl.getBoundingClientRect();
+    const pointerMin = snapTo5(
+      Math.max(0, Math.min(24 * 60 - 5, Math.floor((e.clientY - colRect.top) / PX_PER_MIN)))
+    );
+    const startMin = timeToMinutes(event.startTime);
+    const endMin = timeToMinutes(event.endTime);
+    dragSessionRef.current = {
+      event,
+      durationMin: Math.max(5, endMin - startMin),
+      pointerStartX: e.clientX,
+      pointerStartY: e.clientY,
+      pointerOffsetMin: pointerMin - startMin,
+      started: false,
+      currentTopMin: startMin,
+      currentDate: event.date,
+    };
+    setContextMenu(null);
+  };
+
+  const handleEventContextMenu = (event: ScheduleEvent, e: React.MouseEvent) => {
+    if (isOpen || isDupOpen) return;
+    setContextMenu({ event, x: e.clientX, y: e.clientY });
+  };
+
+  const handleDuplicateEvent = async (event: ScheduleEvent) => {
+    setContextMenu(null);
+    const payload = {
+      title: event.title,
+      date: event.date,
+      startTime: event.startTime,
+      endTime: event.endTime,
+      type: event.type,
+      notes: event.notes,
+    } as Omit<ScheduleEvent, "id" | "userId" | "createdAt" | "updatedAt">;
+    await addEvent(payload);
+  };
+
+  const handleDeleteFromMenu = async (event: ScheduleEvent) => {
+    setContextMenu(null);
+    await deleteEvent(event.id);
+  };
+
+  // Keep a stable ref to the latest handlers so the global pointer listeners
+  // (registered once) always call the current openEdit/updateEvent without
+  // closing over a stale closure.
+  handlersRef.current = { openEdit, updateEvent };
+
+  const hiddenEventIds: ReadonlySet<string> = dragSnapshot ? new Set([dragSnapshot.eventId]) : EMPTY_ID_SET;
+  const suppressHover = isOpen || isDupOpen || dragSnapshot !== null || contextMenu !== null;
+
+  // Compute drag-ghost CSS coordinates relative to the document so the ghost can
+  // be rendered as a fixed-position overlay regardless of scroll position.
+  const ghost = (() => {
+    if (!dragSnapshot) return null;
+    const col = columnRefs.current.get(dragSnapshot.date);
+    if (!col) return null;
+    const r = col.getBoundingClientRect();
+    return {
+      left: r.left + 4,
+      width: r.width - 8,
+      top: r.top + dragSnapshot.topMin * PX_PER_MIN,
+      height: dragSnapshot.durationMin * PX_PER_MIN,
+    };
+  })();
 
   return (
     <div className="min-h-screen bg-background">
@@ -494,9 +740,13 @@ export default function SchedulePage() {
                       date={d}
                       timeFmt={timeFmt}
                       compact={viewMode === "week"}
+                      hiddenEventIds={hiddenEventIds}
+                      suppressHover={suppressHover}
+                      registerColumn={registerColumn}
                       onCreate={handleColumnCreate}
                       onEdit={openEdit}
-                      onDelete={handleDelete}
+                      onEventPointerDown={handleEventPointerDown}
+                      onEventContextMenu={handleEventContextMenu}
                     />
                   ))}
                 </div>
@@ -606,6 +856,49 @@ export default function SchedulePage() {
             )}
           </ModalContent>
         </Modal>
+
+        {/* Drag ghost overlay (rendered while moving an event) */}
+        {ghost && dragSnapshot && (
+          <div
+            className={`fixed pointer-events-none rounded-md ${EVENT_TYPES.find((t) => t.key === dragSnapshot.type)?.color || "bg-blue-500"} text-white text-xs px-2 py-1 shadow-lg opacity-90 z-50 ring-2 ring-white/60`}
+            style={{
+              left: ghost.left,
+              width: ghost.width,
+              top: ghost.top,
+              height: ghost.height,
+            }}
+          >
+            <div className="font-medium truncate">{dragSnapshot.title}</div>
+            <div className="opacity-90">
+              {formatTimeStr(minutesToTime(dragSnapshot.topMin), timeFmt)} -{" "}
+              {formatTimeStr(minutesToTime(dragSnapshot.topMin + dragSnapshot.durationMin), timeFmt)}
+            </div>
+          </div>
+        )}
+
+        {/* Right-click context menu */}
+        {contextMenu && (
+          <div
+            data-context-menu
+            className="fixed z-50 min-w-[140px] rounded-md border border-default-200 bg-content1 shadow-lg py-1"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+          >
+            <button
+              type="button"
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-default-100"
+              onClick={() => handleDuplicateEvent(contextMenu.event)}
+            >
+              Duplicate
+            </button>
+            <button
+              type="button"
+              className="w-full text-left px-3 py-1.5 text-sm text-danger hover:bg-danger-50"
+              onClick={() => handleDeleteFromMenu(contextMenu.event)}
+            >
+              Delete
+            </button>
+          </div>
+        )}
       </main>
     </div>
   );
