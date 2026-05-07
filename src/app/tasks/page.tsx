@@ -118,7 +118,12 @@ const columns: { key: ColumnKey; label: string; color: string }[] = [
 ];
 
 function getDateForColumn(col: ColumnKey): Date {
-  const today = startOfDay(new Date());
+  // Use UTC midnight of the local calendar day so the resulting Timestamp's
+  // ISO date string matches what `useTodayTasks` and other date filters
+  // compute via `new Date().toISOString().split("T")[0]`. This keeps drag
+  // updates consistent with form submissions (which use `new Date("yyyy-MM-dd")`).
+  const todayStr = format(new Date(), "yyyy-MM-dd");
+  const today = new Date(todayStr);
   switch (col) {
     case "past": return addDays(today, -3);
     case "yesterday": return addDays(today, -1);
