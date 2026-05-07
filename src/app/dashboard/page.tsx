@@ -781,7 +781,7 @@ export default function DashboardPage() {
                 const nowPct = nowInRange ? ((nowMins - START_MIN) / SPAN) * 100 : null;
 
                 const typeColors: Record<string, string> = {
-                  event: "bg-blue-500", work: "bg-primary", personal: "bg-green-500",
+                  event: "bg-blue-500", work: "bg-purple-500", personal: "bg-green-500",
                   growth: "bg-orange-500", task: "bg-green-500", habit: "bg-purple-500",
                 };
 
