@@ -144,7 +144,7 @@ function LiveClock({ fmt }: { fmt: "12h" | "24h" }) {
 function TaskSection({
   type,
   tasks,
-  focusTaskId,
+  focusTaskIds,
   onToggle,
   onSetFocus,
   onAddSubtask,
@@ -161,7 +161,7 @@ function TaskSection({
 }: {
   type: (typeof TASK_TYPES)[number];
   tasks: Task[];
-  focusTaskId?: string;
+  focusTaskIds: ReadonlySet<string>;
   onToggle: (id: string, completed: boolean) => void;
   onSetFocus: (id: string) => void;
   onAddSubtask: (taskId: string, title: string) => void;
@@ -182,7 +182,6 @@ function TaskSection({
   const Icon = type.icon;
 
   const activeTasks = tasks.filter((t) => t.status !== "completed");
-  const focusTask = activeTasks.find((t) => t.id === focusTaskId) || activeTasks.find((t) => t.priority === "high") || activeTasks[0];
 
   const handleAdd = () => {
     if (!newTitle.trim()) return;
@@ -273,7 +272,7 @@ function TaskSection({
                             onTogglePriority={onTogglePriority}
                             onOpenEditModal={onOpenEditModal}
                             onUpdateSubtaskTitle={onUpdateSubtaskTitle}
-                            isFocused={task.id === focusTask?.id}
+                            isFocused={focusTaskIds.has(task.id)}
                             projectName={task.projectId ? projectsMap[task.projectId] : undefined}
                           />
                         ))}
@@ -297,7 +296,7 @@ function TaskSection({
                           onTogglePriority={onTogglePriority}
                           onOpenEditModal={onOpenEditModal}
                           onUpdateSubtaskTitle={onUpdateSubtaskTitle}
-                          isFocused={task.id === focusTask?.id}
+                          isFocused={focusTaskIds.has(task.id)}
                           projectName={task.projectId ? projectsMap[task.projectId] : undefined}
                         />
                       ))}
@@ -318,7 +317,7 @@ function TaskSection({
                     onTogglePriority={onTogglePriority}
                     onOpenEditModal={onOpenEditModal}
                     onUpdateSubtaskTitle={onUpdateSubtaskTitle}
-                    isFocused={task.id === focusTask?.id}
+                    isFocused={focusTaskIds.has(task.id)}
                     projectName={task.projectId ? projectsMap[task.projectId] : undefined}
                   />
                 ))
@@ -573,7 +572,7 @@ export default function DashboardPage() {
   const { addTask, updateTask, reorderTasks } = useTaskMutations();
   const { toggleHabitLog, updateHabitCount, reorderHabits } = useHabitMutations();
   const [completedOpen, setCompletedOpen] = useState(false);
-  const [focusTasks, setFocusTasks] = useState<Record<TaskType, string>>({} as any);
+  const [focusTaskIds, setFocusTaskIds] = useState<string[]>([]);
   const [focusHabitId, setFocusHabitId] = useState<string>("");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const { isOpen: isEditModalOpen, onOpen: onEditModalOpen, onOpenChange: onEditModalOpenChange } = useDisclosure();
@@ -610,10 +609,17 @@ export default function DashboardPage() {
     updateTask(id, { status: completed ? "completed" : "not_started" });
   };
 
+  // Toggle a task's focus state. Up to 4 explicit focuses across all sections;
+  // multiple from the same section are allowed. Adding a 5th drops the oldest.
   const handleSetFocus = (taskId: string) => {
-    const task = todayTasks.find((t) => t.id === taskId);
-    if (task) setFocusTasks((prev) => ({ ...prev, [task.category]: taskId }));
+    setFocusTaskIds((prev) => {
+      if (prev.includes(taskId)) return prev.filter((id) => id !== taskId);
+      const next = [...prev, taskId];
+      return next.length > 4 ? next.slice(next.length - 4) : next;
+    });
   };
+
+  const focusTaskIdSet = new Set(focusTaskIds);
 
   const handleAddSubtask = (taskId: string, title: string) => {
     const task = todayTasks.find((t) => t.id === taskId);
@@ -880,13 +886,27 @@ export default function DashboardPage() {
 
           {/* Focus Tasks Row */}
           {(() => {
-            const focusItems = TASK_TYPES.filter((t) => t.key !== "habit").map((type) => {
-              const catTasks = activeTasks.filter((t) => t.category === type.key);
-              const explicit = focusTasks[type.key] ? catTasks.find((t) => t.id === focusTasks[type.key]) : undefined;
-              const auto = catTasks.find((t) => t.priority === "high") || catTasks[0];
-              const focus = explicit || auto;
-              return focus ? { type, task: focus } : null;
-            }).filter(Boolean) as { type: typeof TASK_TYPES[number]; task: Task }[];
+            // Explicit user picks first (in selection order); fall back to
+            // legacy auto-pick (one per section) only when no explicit picks
+            // have been made yet.
+            let focusItems: { type: typeof TASK_TYPES[number]; task: Task }[];
+            if (focusTaskIds.length > 0) {
+              focusItems = focusTaskIds
+                .map((id) => activeTasks.find((t) => t.id === id))
+                .filter(Boolean)
+                .map((task) => {
+                  const t = task as Task;
+                  const type = TASK_TYPES.find((tt) => tt.key === t.category);
+                  return type ? { type, task: t } : null;
+                })
+                .filter(Boolean) as { type: typeof TASK_TYPES[number]; task: Task }[];
+            } else {
+              focusItems = TASK_TYPES.filter((t) => t.key !== "habit").map((type) => {
+                const catTasks = activeTasks.filter((t) => t.category === type.key);
+                const auto = catTasks.find((t) => t.priority === "high") || catTasks[0];
+                return auto ? { type, task: auto } : null;
+              }).filter(Boolean) as { type: typeof TASK_TYPES[number]; task: Task }[];
+            }
 
             const focusHabit = focusHabitId
               ? habits.find((h) => h.id === focusHabitId)
@@ -991,7 +1011,7 @@ export default function DashboardPage() {
                 key={type.key}
                 type={type}
                 tasks={activeTasks.filter((t) => t.category === type.key)}
-                focusTaskId={focusTasks[type.key]}
+                focusTaskIds={focusTaskIdSet}
                 onToggle={handleToggleTask}
                 onSetFocus={handleSetFocus}
                 onAddSubtask={handleAddSubtask}
