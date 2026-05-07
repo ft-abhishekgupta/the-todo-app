@@ -246,7 +246,7 @@ function TaskSection({
         )}
       </AnimatePresence>
 
-      <CardBody className="pt-0 px-2 pb-2 max-h-72 overflow-y-auto">
+      <CardBody className="pt-0 px-2 pb-2 max-h-[calc(100vh-160px)] overflow-y-auto">
         {activeTasks.length === 0 ? (
           <p className="text-default-400 text-xs text-center py-4">No tasks</p>
         ) : (
@@ -378,7 +378,7 @@ function HabitSection({
         </div>
       )}
 
-      <CardBody className="pt-0 px-2 pb-2 max-h-72 overflow-y-auto">
+      <CardBody className="pt-0 px-2 pb-2 max-h-[calc(100vh-160px)] overflow-y-auto">
         {habits.length === 0 ? (
           <p className="text-default-400 text-xs text-center py-4">No habits</p>
         ) : (
