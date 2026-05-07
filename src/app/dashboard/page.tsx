@@ -477,10 +477,12 @@ function CompletedSidebar({
   tasks,
   isOpen,
   onToggle,
+  onUncheck,
 }: {
   tasks: Task[];
   isOpen: boolean;
   onToggle: () => void;
+  onUncheck: (id: string) => void;
 }) {
   const grouped = TASK_TYPES.reduce(
     (acc, type) => {
@@ -497,14 +499,11 @@ function CompletedSidebar({
     <div className="fixed right-0 top-16 bottom-0 z-30">
       <button
         onClick={onToggle}
-        className="absolute top-4 bg-success/10 hover:bg-success/20 border border-success/30 rounded-l-lg px-2 py-3 transition-all"
+        aria-label={isOpen ? "Hide completed tasks" : "Show completed tasks"}
+        className="absolute bottom-4 bg-success/10 hover:bg-success/20 border border-success/30 rounded-l-lg p-2 transition-all"
         style={{ right: isOpen ? "320px" : "0" }}
       >
-        <div className="flex flex-col items-center gap-1">
-          <CheckCircle2 size={16} className="text-success" />
-          <span className="text-[10px] font-bold text-success">{tasks.length}</span>
-          {isOpen ? <ChevronRight size={12} className="text-success" /> : <ChevronDown size={12} className="text-success rotate-90" />}
-        </div>
+        <CheckCircle2 size={16} className="text-success" />
       </button>
 
       <AnimatePresence>
@@ -537,9 +536,16 @@ function CompletedSidebar({
                       <span className="text-xs font-medium text-default-500 uppercase">{typeConfig.label}</span>
                     </div>
                     {typeTasks.map((task) => (
-                      <div key={task.id} className="flex items-center gap-2 py-1 px-2">
-                        <CheckCircle2 size={12} className="text-success shrink-0" />
-                        <span className="text-xs text-default-400 line-through truncate">{task.title}</span>
+                      <div key={task.id} className="flex items-center gap-2 py-1 px-2 group">
+                        <button
+                          type="button"
+                          onClick={() => onUncheck(task.id)}
+                          aria-label={`Mark "${task.title}" as not completed`}
+                          className="w-4 h-4 rounded-full bg-success border border-success flex items-center justify-center shrink-0 hover:bg-success/80 transition-colors cursor-pointer"
+                        >
+                          <CheckCircle2 size={10} className="text-white" />
+                        </button>
+                        <span className="text-xs text-default-400 line-through truncate flex-1">{task.title}</span>
                       </div>
                     ))}
                   </div>
@@ -1017,7 +1023,7 @@ export default function DashboardPage() {
         </motion.div>
       </main>
 
-      <CompletedSidebar tasks={completedTasks} isOpen={completedOpen} onToggle={() => setCompletedOpen(!completedOpen)} />
+      <CompletedSidebar tasks={completedTasks} isOpen={completedOpen} onToggle={() => setCompletedOpen(!completedOpen)} onUncheck={(id) => handleToggleTask(id, false)} />
 
       <TaskEditModal
         isOpen={isEditModalOpen}
