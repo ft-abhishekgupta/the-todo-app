@@ -82,8 +82,10 @@ export function useScheduleMutations() {
 
   const updateEvent = async (id: string, data: Partial<ScheduleEvent>) => {
     if (!user) return;
+    // Strip undefined fields - Firestore rejects them
+    const cleanData = Object.fromEntries(Object.entries(data).filter(([_, v]) => v !== undefined));
     await updateDoc(doc(db, "scheduleEvents", id), {
-      ...data,
+      ...cleanData,
       updatedAt: Timestamp.now(),
     });
   };

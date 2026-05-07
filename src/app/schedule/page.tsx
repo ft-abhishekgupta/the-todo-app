@@ -518,15 +518,20 @@ export default function SchedulePage() {
       startTime: formStartTime,
       endTime: formEndTime,
       type: formType,
-      notes: formNotes.trim() || undefined,
+      notes: formNotes.trim(),
     };
 
-    if (editingEvent) {
-      await updateEvent(editingEvent.id, data);
-    } else {
-      await addEvent(data as any);
+    try {
+      if (editingEvent) {
+        await updateEvent(editingEvent.id, data);
+      } else {
+        await addEvent(data as any);
+      }
+      onOpenChange();
+    } catch (err) {
+      console.error("Failed to save event:", err);
+      toast.error("Failed to save event");
     }
-    onOpenChange();
   };
 
   const handleDuplicate = async () => {
