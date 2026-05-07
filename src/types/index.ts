@@ -92,17 +92,22 @@ export interface HabitLog {
 }
 
 // Pomodoro Types
+export type PomodoroMode = "focus" | "short_break" | "long_break";
+
 export interface PomodoroSession {
   id: string;
   userId: string;
   taskId?: string;
   taskIds?: string[];
   habitIds?: string[];
-  duration: number; // in minutes
+  duration: number; // planned, in minutes
   notes?: string;
   startedAt: Timestamp;
   completedAt?: Timestamp;
   isCompleted: boolean;
+  mode?: PomodoroMode;
+  skipped?: boolean;
+  actualDurationSeconds?: number;
 }
 
 // Project Types
