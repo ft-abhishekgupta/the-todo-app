@@ -37,7 +37,7 @@ import toast from "react-hot-toast";
 
 const EVENT_TYPES = [
   { key: "event", label: "Event", color: "bg-blue-500" },
-  { key: "work", label: "Work", color: "bg-primary" },
+  { key: "work", label: "Work", color: "bg-purple-500" },
   { key: "personal", label: "Personal", color: "bg-green-500" },
   { key: "growth", label: "Growth", color: "bg-orange-500" },
 ] as const;

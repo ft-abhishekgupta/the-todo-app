@@ -84,8 +84,8 @@ const TASK_TYPES: {
     icon: Briefcase,
     color: "text-primary",
     subtypes: [
-      { key: "project_task", label: "Project Task" },
-      { key: "general_task", label: "General Task" },
+      { key: "project_task", label: "Project" },
+      { key: "general_task", label: "General" },
       { key: "chores", label: "Chores" },
     ],
   },
@@ -95,8 +95,8 @@ const TASK_TYPES: {
     icon: User,
     color: "text-success",
     subtypes: [
-      { key: "general_task", label: "General Task" },
-      { key: "project_task", label: "Project Task" },
+      { key: "general_task", label: "General" },
+      { key: "project_task", label: "Project" },
       { key: "chores", label: "Chores" },
       { key: "social", label: "Social" },
     ],

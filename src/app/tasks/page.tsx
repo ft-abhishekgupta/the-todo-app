@@ -78,13 +78,13 @@ const categoryOptions: { key: TaskCategory; label: string }[] = [
 
 const subtypeOptions: Record<TaskCategory, { key: TaskSubtype; label: string }[]> = {
   work: [
-    { key: "project_task", label: "Project Task" },
-    { key: "general_task", label: "General Task" },
+    { key: "project_task", label: "Project" },
+    { key: "general_task", label: "General" },
     { key: "chores", label: "Chores" },
   ],
   personal: [
-    { key: "general_task", label: "General Task" },
-    { key: "project_task", label: "Project Task" },
+    { key: "general_task", label: "General" },
+    { key: "project_task", label: "Project" },
     { key: "chores", label: "Chores" },
     { key: "social", label: "Social" },
   ],
@@ -547,7 +547,7 @@ function TasksPageContent() {
     setFormStatus("not_started");
     setFormPriority("medium");
     setFormCategory("work");
-    setFormSubtype("");
+    setFormSubtype("general_task");
     setFormDeadline("");
     setFormScheduledDate(format(new Date(), "yyyy-MM-dd"));
     setFormTags("");
@@ -642,11 +642,13 @@ function TasksPageContent() {
 
   const handleQuickAdd = async () => {
     if (!quickAddTitle.trim()) return;
+    const category = filterCategory !== "all" ? filterCategory : "work";
     await addTask({
       title: quickAddTitle.trim(),
       status: filterStatus !== "all" ? filterStatus : "not_started",
       priority: filterPriority !== "all" ? filterPriority : "medium",
-      category: filterCategory !== "all" ? filterCategory : "work",
+      category,
+      subtype: category === "work" || category === "personal" ? "general_task" : undefined,
       tags: [],
       subtasks: [],
       scheduledDate: Timestamp.fromDate(new Date()),
@@ -863,7 +865,7 @@ function TasksPageContent() {
                     </Select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
-                    <Select label="Category" variant="bordered" size="sm" selectedKeys={[formCategory]} onSelectionChange={(k) => { setFormCategory(Array.from(k)[0] as TaskCategory); setFormSubtype(""); }}>
+                    <Select label="Category" variant="bordered" size="sm" selectedKeys={[formCategory]} onSelectionChange={(k) => { const cat = Array.from(k)[0] as TaskCategory; setFormCategory(cat); setFormSubtype(cat === "work" || cat === "personal" ? "general_task" : ""); }}>
                       {categoryOptions.map((c) => <SelectItem key={c.key}>{c.label}</SelectItem>)}
                     </Select>
                     {subtypeOptions[formCategory]?.length > 0 && (

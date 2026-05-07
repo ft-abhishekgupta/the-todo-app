@@ -48,13 +48,13 @@ const categoryOptions: { key: TaskCategory; label: string }[] = [
 
 const subtypeOptions: Record<TaskCategory, { key: TaskSubtype; label: string }[]> = {
   work: [
-    { key: "project_task", label: "Project Task" },
-    { key: "general_task", label: "General Task" },
+    { key: "project_task", label: "Project" },
+    { key: "general_task", label: "General" },
     { key: "chores", label: "Chores" },
   ],
   personal: [
-    { key: "general_task", label: "General Task" },
-    { key: "project_task", label: "Project Task" },
+    { key: "general_task", label: "General" },
+    { key: "project_task", label: "Project" },
     { key: "chores", label: "Chores" },
     { key: "social", label: "Social" },
   ],
@@ -65,6 +65,13 @@ const subtypeOptions: Record<TaskCategory, { key: TaskSubtype; label: string }[]
   ],
   habit: [],
 };
+
+// Pre-select "General" when switching to work/personal so users don't have
+// to pick the most common subcategory by hand.
+function defaultSubtypeFor(category: TaskCategory): TaskSubtype | "" {
+  if (category === "work" || category === "personal") return "general_task";
+  return "";
+}
 
 export interface TaskEditModalProps {
   isOpen: boolean;
@@ -91,7 +98,7 @@ export function TaskEditModal({
   const [formStatus, setFormStatus] = useState<TaskStatus>("not_started");
   const [formPriority, setFormPriority] = useState<TaskPriority>("medium");
   const [formCategory, setFormCategory] = useState<TaskCategory>("work");
-  const [formSubtype, setFormSubtype] = useState<TaskSubtype | "">("");
+  const [formSubtype, setFormSubtype] = useState<TaskSubtype | "">("general_task");
   const [formDeadline, setFormDeadline] = useState("");
   const [formScheduledDate, setFormScheduledDate] = useState("");
   const [formTags, setFormTags] = useState("");
@@ -122,7 +129,7 @@ export function TaskEditModal({
       setFormStatus("not_started");
       setFormPriority("medium");
       setFormCategory(defaultCategory || "work");
-      setFormSubtype("");
+      setFormSubtype(defaultSubtypeFor(defaultCategory || "work"));
       setFormDeadline("");
       setFormScheduledDate(defaultScheduledDate ? format(defaultScheduledDate, "yyyy-MM-dd") : format(new Date(), "yyyy-MM-dd"));
       setFormTags("");
@@ -181,7 +188,7 @@ export function TaskEditModal({
                 </Select>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <Select label="Category" variant="bordered" size="sm" selectedKeys={[formCategory]} onSelectionChange={(k) => { setFormCategory(Array.from(k)[0] as TaskCategory); setFormSubtype(""); }}>
+                <Select label="Category" variant="bordered" size="sm" selectedKeys={[formCategory]} onSelectionChange={(k) => { const cat = Array.from(k)[0] as TaskCategory; setFormCategory(cat); setFormSubtype(defaultSubtypeFor(cat)); }}>
                   {categoryOptions.map((c) => <SelectItem key={c.key}>{c.label}</SelectItem>)}
                 </Select>
                 {subtypeOptions[formCategory]?.length > 0 && (
