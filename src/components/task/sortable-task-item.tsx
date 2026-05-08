@@ -160,13 +160,20 @@ export function SortableTaskItem({
   };
 
   return (
-    <div onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); onOpenEditModal(task); }}>
     <div
       ref={setNodeRef}
       style={style}
       {...attributes}
       {...listeners}
       className={`rounded-lg hover:bg-content2/50 transition-colors mb-1 cursor-grab active:cursor-grabbing touch-none ${isFocused ? "bg-primary/5 border border-primary/20" : ""}`}
+      onMouseDown={(e) => {
+        if (e.button === 2) {
+          e.preventDefault();
+          e.stopPropagation();
+          onOpenEditModal(task);
+        }
+      }}
+      onContextMenu={(e) => { e.preventDefault(); }}
     >
       <div className="flex items-center gap-2 p-2 group">
         <div
@@ -285,7 +292,6 @@ export function SortableTaskItem({
           </Button>
         </div>
       )}
-    </div>
     </div>
   );
 }
