@@ -527,6 +527,7 @@ function TasksPageContent() {
     if (column === "today") setFormScheduledDate(format(new Date(), "yyyy-MM-dd"));
     else if (column === "tomorrow") setFormScheduledDate(format(addDays(new Date(), 1), "yyyy-MM-dd"));
     else if (column === "yesterday") setFormScheduledDate(format(addDays(new Date(), -1), "yyyy-MM-dd"));
+    else if (column === "future") setFormScheduledDate("");
     onOpen();
   };
 
