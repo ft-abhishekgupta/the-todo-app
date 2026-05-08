@@ -31,6 +31,7 @@ import {
   ChevronDown,
   ChevronRight as ChevronRightIcon,
   X,
+  ArrowRightToLine,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { useTasks, useTaskMutations } from "@/hooks/use-tasks";
@@ -808,9 +809,21 @@ function TasksPageContent() {
                         size="sm"
                         variant="light"
                         className="w-5 h-5 min-w-5"
-                        onPress={() => openCreateModal(col.key)}
+                        onPress={() => {
+                          if (col.key === "past" || col.key === "yesterday") {
+                            const todayDate = getDateForColumn("today");
+                            const ts = Timestamp.fromDate(todayDate);
+                            const incomplete = colTasks.filter((t) => t.status !== "completed");
+                            if (incomplete.length === 0) return;
+                            incomplete.forEach((t) => updateTask(t.id, { scheduledDate: ts }));
+                          } else {
+                            openCreateModal(col.key);
+                          }
+                        }}
+                        title={col.key === "past" || col.key === "yesterday" ? "Move incomplete tasks to today" : "Add task"}
+                        isDisabled={(col.key === "past" || col.key === "yesterday") && colTasks.filter((t) => t.status !== "completed").length === 0}
                       >
-                        <Plus size={12} />
+                        {col.key === "past" || col.key === "yesterday" ? <ArrowRightToLine size={12} /> : <Plus size={12} />}
                       </Button>
                     </CardHeader>
                     {!isCollapsed && (
