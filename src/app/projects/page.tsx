@@ -43,7 +43,7 @@ import { useProjects, useProjectMutations } from "@/hooks/use-projects";
 import { useTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { Project, ProjectType, ProjectStatus, Task, TaskPriority, Subtask } from "@/types";
 import { Timestamp } from "firebase/firestore";
-import { format, isPast } from "date-fns";
+import { format, isPast, addDays } from "date-fns";
 import { parseLocalDate } from "@/lib/time";
 import {
   DndContext,
@@ -105,6 +105,8 @@ export default function ProjectsPage() {
   const [filterType, setFilterType] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [quickTaskTitle, setQuickTaskTitle] = useState("");
+  const [quickTaskDate, setQuickTaskDate] = useState<string>("today");
+  const [quickTaskPriority, setQuickTaskPriority] = useState<TaskPriority>("medium");
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -260,17 +262,41 @@ export default function ProjectsPage() {
     reorderTasks(newOrder.map((t) => t.id));
   };
 
+  const dateOptions: { key: string; label: string }[] = [
+    { key: "today", label: "Today" },
+    { key: "tomorrow", label: "Tomorrow" },
+    { key: "in_3_days", label: "In 3 days" },
+    { key: "next_week", label: "Next week" },
+    { key: "none", label: "No date" },
+  ];
+
+  const resolveQuickDate = (key: string): Date | undefined => {
+    const today = parseLocalDate(format(new Date(), "yyyy-MM-dd"));
+    switch (key) {
+      case "today": return today;
+      case "tomorrow": return addDays(today, 1);
+      case "in_3_days": return addDays(today, 3);
+      case "next_week": return addDays(today, 7);
+      default: return undefined;
+    }
+  };
+
   const handleQuickAddTask = async (projectId: string, projectType: ProjectType) => {
     const title = quickTaskTitle.trim();
     if (!title) return;
+    const scheduled = resolveQuickDate(quickTaskDate);
     await addTask({
       title,
       status: "not_started",
-      priority: "medium",
+      priority: quickTaskPriority,
       category: projectType,
+      // Tasks created from a project default to the "Project" subcategory
+      // (only meaningful for work / personal categories).
+      subtype: projectType === "work" || projectType === "personal" ? "project_task" : undefined,
       projectId,
       subtasks: [],
       tags: [],
+      scheduledDate: scheduled ? Timestamp.fromDate(scheduled) : undefined,
     });
     setQuickTaskTitle("");
   };
@@ -353,7 +379,7 @@ export default function ProjectsPage() {
                   {/* Quick add task */}
                   <Card shadow="sm">
                     <CardBody className="p-2">
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <Input
                           size="sm"
                           placeholder="Add a task to this project..."
@@ -365,15 +391,40 @@ export default function ProjectsPage() {
                             }
                           }}
                           startContent={<Plus size={14} className="text-default-400" />}
+                          className="flex-1"
                         />
-                        <Button
-                          size="sm"
-                          color="primary"
-                          isDisabled={!quickTaskTitle.trim()}
-                          onPress={() => handleQuickAddTask(detailProject.id, detailProject.type || "work")}
-                        >
-                          Add
-                        </Button>
+                        <div className="flex gap-2">
+                          <Select
+                            size="sm"
+                            aria-label="Schedule"
+                            selectedKeys={[quickTaskDate]}
+                            onSelectionChange={(k) => setQuickTaskDate(Array.from(k)[0] as string)}
+                            className="w-32"
+                            disallowEmptySelection
+                          >
+                            {dateOptions.map((o) => <SelectItem key={o.key}>{o.label}</SelectItem>)}
+                          </Select>
+                          <Select
+                            size="sm"
+                            aria-label="Priority"
+                            selectedKeys={[quickTaskPriority]}
+                            onSelectionChange={(k) => setQuickTaskPriority(Array.from(k)[0] as TaskPriority)}
+                            className="w-28"
+                            disallowEmptySelection
+                          >
+                            <SelectItem key="low">Low</SelectItem>
+                            <SelectItem key="medium">Medium</SelectItem>
+                            <SelectItem key="high">High</SelectItem>
+                          </Select>
+                          <Button
+                            size="sm"
+                            color="primary"
+                            isDisabled={!quickTaskTitle.trim()}
+                            onPress={() => handleQuickAddTask(detailProject.id, detailProject.type || "work")}
+                          >
+                            Add
+                          </Button>
+                        </div>
                       </div>
                     </CardBody>
                   </Card>
