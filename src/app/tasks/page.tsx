@@ -39,6 +39,7 @@ import { useProjects } from "@/hooks/use-projects";
 import { Task, TaskStatus, TaskPriority, TaskCategory, TaskSubtype, Subtask } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { format, isToday, isYesterday, isTomorrow, isBefore, startOfDay, addDays } from "date-fns";
+import { parseLocalDate } from "@/lib/time";
 import {
   DndContext,
   closestCenter,
@@ -119,12 +120,11 @@ const columns: { key: ColumnKey; label: string; color: string }[] = [
 ];
 
 function getDateForColumn(col: ColumnKey): Date {
-  // Use UTC midnight of the local calendar day so the resulting Timestamp's
-  // ISO date string matches what `useTodayTasks` and other date filters
-  // compute via `new Date().toISOString().split("T")[0]`. This keeps drag
-  // updates consistent with form submissions (which use `new Date("yyyy-MM-dd")`).
-  const todayStr = format(new Date(), "yyyy-MM-dd");
-  const today = new Date(todayStr);
+  // Use LOCAL midnight of the calendar day. Storing the resulting Timestamp
+  // and later reading it back with `format(ts, "yyyy-MM-dd")` (also local)
+  // round-trips correctly in any timezone. `new Date("yyyy-MM-dd")` would
+  // produce UTC midnight and round-trip wrong west of UTC.
+  const today = parseLocalDate(format(new Date(), "yyyy-MM-dd"));
   switch (col) {
     case "past": return addDays(today, -3);
     case "yesterday": return addDays(today, -1);
@@ -566,8 +566,8 @@ function TasksPageContent() {
       priority: formPriority,
       category: formCategory,
       subtype: formSubtype || undefined,
-      deadline: formDeadline ? Timestamp.fromDate(new Date(formDeadline)) : undefined,
-      scheduledDate: formScheduledDate ? Timestamp.fromDate(new Date(formScheduledDate)) : undefined,
+      deadline: formDeadline ? Timestamp.fromDate(parseLocalDate(formDeadline)) : undefined,
+      scheduledDate: formScheduledDate ? Timestamp.fromDate(parseLocalDate(formScheduledDate)) : undefined,
       tags: formTags.split(",").map((t) => t.trim()).filter(Boolean),
       notes: formNotes.trim() || undefined,
       projectId: formProjectId || undefined,

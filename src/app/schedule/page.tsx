@@ -32,7 +32,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { useSchedule, useScheduleMutations } from "@/hooks/use-schedule";
 import { format, addDays, subDays, parseISO, startOfWeek } from "date-fns";
 import { ScheduleEvent } from "@/types";
-import { formatTimeStr } from "@/lib/time";
+import { formatTimeStr, parseLocalDate } from "@/lib/time";
 import toast from "react-hot-toast";
 
 const EVENT_TYPES = [
@@ -842,7 +842,7 @@ export default function SchedulePage() {
                 <ModalHeader>Duplicate Schedule</ModalHeader>
                 <ModalBody>
                   <p className="text-sm text-default-500 mb-2">
-                    Copy all events from {format(new Date(selectedDate), "MMM d")} to:
+                    Copy all events from {format(parseLocalDate(selectedDate), "MMM d")} to:
                   </p>
                   <Input
                     type="date"

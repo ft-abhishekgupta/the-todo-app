@@ -18,6 +18,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { format, subDays, startOfDay } from "date-fns";
+import { parseLocalDate } from "@/lib/time";
 
 export function useHabits(category?: HabitCategory) {
   const { user } = useAuth();
@@ -240,7 +241,7 @@ export function useHabitMutations() {
     for (const date of dates) {
       if (date === checkDate) {
         streak++;
-        checkDate = format(subDays(new Date(checkDate), 1), "yyyy-MM-dd");
+        checkDate = format(subDays(parseLocalDate(checkDate), 1), "yyyy-MM-dd");
       } else if (date < checkDate) {
         break;
       }

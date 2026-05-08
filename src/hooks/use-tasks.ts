@@ -17,6 +17,7 @@ import { Task, TaskStatus, TaskPriority, TaskCategory, Subtask } from "@/types";
 import { useAuth } from "@/providers/auth-provider";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { format } from "date-fns";
 import toast from "react-hot-toast";
 
 export function useTasks(filters?: {
@@ -61,7 +62,10 @@ export function useTasks(filters?: {
       if (filters?.scheduledDate) {
         taskList = taskList.filter((t) => {
           if (!t.scheduledDate) return false;
-          const date = t.scheduledDate.toDate().toISOString().split("T")[0];
+          // Compare in LOCAL calendar terms. `toISOString()` yields UTC, which
+          // shifts the date for users east of UTC and would surface yesterday's
+          // tasks as today (and vice-versa) past local midnight.
+          const date = format(t.scheduledDate.toDate(), "yyyy-MM-dd");
           return date === filters.scheduledDate;
         });
       }
@@ -150,6 +154,8 @@ export function useTaskMutations() {
 }
 
 export function useTodayTasks() {
-  const today = new Date().toISOString().split("T")[0];
+  // LOCAL "today" — `toISOString()` would return UTC and roll the date back
+  // for IST/EST/etc. users after local midnight.
+  const today = format(new Date(), "yyyy-MM-dd");
   return useTasks({ scheduledDate: today });
 }

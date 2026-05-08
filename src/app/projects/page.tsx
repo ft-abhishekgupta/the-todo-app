@@ -44,6 +44,7 @@ import { useTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { Project, ProjectType, ProjectStatus, Task, TaskPriority, Subtask } from "@/types";
 import { Timestamp } from "firebase/firestore";
 import { format, isPast } from "date-fns";
+import { parseLocalDate } from "@/lib/time";
 import {
   DndContext,
   closestCenter,
@@ -141,7 +142,7 @@ export default function ProjectsPage() {
       color: formColor,
       type: formType,
       status: "active",
-      deadline: formDeadline ? Timestamp.fromDate(new Date(formDeadline)) : undefined,
+      deadline: formDeadline ? Timestamp.fromDate(parseLocalDate(formDeadline)) : undefined,
       isActive: true,
     });
     resetForm();
@@ -176,7 +177,7 @@ export default function ProjectsPage() {
       notes: formNotes.trim() || undefined,
       color: formColor,
       type: formType,
-      deadline: formDeadline ? Timestamp.fromDate(new Date(formDeadline)) : undefined,
+      deadline: formDeadline ? Timestamp.fromDate(parseLocalDate(formDeadline)) : undefined,
     });
     onEditOpenChange();
     resetForm();

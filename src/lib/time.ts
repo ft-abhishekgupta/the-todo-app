@@ -34,3 +34,15 @@ export function dateFnsTimeFormat(fmt: TimeFormat = "12h", includeSeconds = fals
   if (fmt === "24h") return includeSeconds ? "HH:mm:ss" : "HH:mm";
   return includeSeconds ? "h:mm:ss a" : "h:mm a";
 }
+
+/**
+ * Parse a "yyyy-MM-dd" string as LOCAL midnight (not UTC).
+ * `new Date("yyyy-MM-dd")` parses as UTC, which causes off-by-one-day bugs
+ * for users east *or* west of UTC when the resulting Timestamp is later
+ * formatted back into a local calendar string. Use this everywhere a date
+ * string from a form/column is converted to a Date/Timestamp.
+ */
+export function parseLocalDate(yyyyMmDd: string): Date {
+  const [y, m, d] = yyyyMmDd.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0);
+}
