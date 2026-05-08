@@ -37,7 +37,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { useTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { useProjects } from "@/hooks/use-projects";
 import { Task, TaskStatus, TaskPriority, TaskCategory, TaskSubtype, Subtask } from "@/types";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp, deleteField } from "firebase/firestore";
 import { format, isToday, isYesterday, isTomorrow, isBefore, startOfDay, addDays } from "date-fns";
 import { parseLocalDate } from "@/lib/time";
 import {
@@ -119,7 +119,7 @@ const columns: { key: ColumnKey; label: string; color: string }[] = [
   { key: "future", label: "Future", color: "text-default-500" },
 ];
 
-function getDateForColumn(col: ColumnKey): Date {
+function getDateForColumn(col: ColumnKey): Date | null {
   // Use LOCAL midnight of the calendar day. Storing the resulting Timestamp
   // and later reading it back with `format(ts, "yyyy-MM-dd")` (also local)
   // round-trips correctly in any timezone. `new Date("yyyy-MM-dd")` would
@@ -130,8 +130,13 @@ function getDateForColumn(col: ColumnKey): Date {
     case "yesterday": return addDays(today, -1);
     case "today": return today;
     case "tomorrow": return addDays(today, 1);
-    case "future": return addDays(today, 3);
+    case "future": return null;
   }
+}
+
+function scheduledDateUpdate(col: ColumnKey) {
+  const d = getDateForColumn(col);
+  return d === null ? deleteField() : Timestamp.fromDate(d);
 }
 
 function DroppableColumn({ id, children }: { id: string; children: React.ReactNode }) {
@@ -672,7 +677,7 @@ function TasksPageContent() {
       if (task) {
         const currentCol = getColumnForTask(task);
         if (currentCol !== targetColumn.key) {
-          updateTask(activeId, { scheduledDate: Timestamp.fromDate(getDateForColumn(targetColumn.key)) });
+          updateTask(activeId, { scheduledDate: scheduledDateUpdate(targetColumn.key) as never });
         }
       }
       return;
@@ -688,7 +693,7 @@ function TasksPageContent() {
 
         if (sourceCol !== targetCol) {
           // Cross-column: update date to target column's date
-          updateTask(activeId, { scheduledDate: Timestamp.fromDate(getDateForColumn(targetCol)) });
+          updateTask(activeId, { scheduledDate: scheduledDateUpdate(targetCol) as never });
         } else {
           // Same column: reorder
           const colTasks = tasksByColumn[sourceCol];
@@ -811,7 +816,7 @@ function TasksPageContent() {
                         className="w-5 h-5 min-w-5"
                         onPress={() => {
                           if (col.key === "past" || col.key === "yesterday") {
-                            const todayDate = getDateForColumn("today");
+                            const todayDate = getDateForColumn("today")!;
                             const ts = Timestamp.fromDate(todayDate);
                             const incomplete = colTasks.filter((t) => t.status !== "completed");
                             if (incomplete.length === 0) return;
