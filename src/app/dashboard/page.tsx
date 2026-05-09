@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/providers/auth-provider";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef, useLayoutEffect } from "react";
 import {
   Card,
   CardBody,
@@ -141,6 +141,46 @@ function LiveClock({ fmt }: { fmt: "12h" | "24h" }) {
   );
 }
 
+// Constrains the element's max-height so its bottom never exceeds the viewport
+// (with a small bottom padding). Recomputes when layout above shifts.
+function useViewportConstrainedMaxHeight(bottomPadding = 16, minHeight = 200) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [maxH, setMaxH] = useState<number | undefined>(undefined);
+
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let raf = 0;
+    const compute = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (!ref.current) return;
+        // Disable on small screens (let content flow naturally)
+        if (window.innerWidth < 1024) {
+          setMaxH(undefined);
+          return;
+        }
+        const top = ref.current.getBoundingClientRect().top;
+        const available = window.innerHeight - top - bottomPadding;
+        setMaxH(Math.max(minHeight, available));
+      });
+    };
+    compute();
+    const ro = new ResizeObserver(compute);
+    ro.observe(document.body);
+    window.addEventListener("resize", compute);
+    window.addEventListener("scroll", compute, { passive: true });
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      window.removeEventListener("resize", compute);
+      window.removeEventListener("scroll", compute);
+    };
+  }, [bottomPadding, minHeight]);
+
+  return { ref, maxH };
+}
+
 function TaskSection({
   type,
   tasks,
@@ -182,6 +222,7 @@ function TaskSection({
   const Icon = type.icon;
 
   const activeTasks = tasks.filter((t) => t.status !== "completed");
+  const { ref: bodyRef, maxH } = useViewportConstrainedMaxHeight();
 
   const handleAdd = () => {
     if (!newTitle.trim()) return;
@@ -245,7 +286,8 @@ function TaskSection({
         )}
       </AnimatePresence>
 
-      <CardBody className="pt-0 px-2 pb-2 max-h-[calc(100vh-160px)] overflow-y-auto">
+      <CardBody className="pt-0 px-2 pb-2">
+        <div ref={bodyRef} style={maxH ? { maxHeight: maxH } : undefined} className="overflow-y-auto">
         {activeTasks.length === 0 ? (
           <p className="text-default-400 text-xs text-center py-4">No tasks</p>
         ) : (
@@ -325,6 +367,7 @@ function TaskSection({
             </SortableContext>
           </DndContext>
         )}
+        </div>
       </CardBody>
     </Card>
   );
@@ -356,6 +399,7 @@ function HabitSection({
   ).length;
 
   const focusHabit = habits.find((h) => h.id === focusHabitId) || habits[0];
+  const { ref: bodyRef, maxH } = useViewportConstrainedMaxHeight();
 
   return (
     <Card shadow="sm" className="h-fit">
@@ -377,7 +421,8 @@ function HabitSection({
         </div>
       )}
 
-      <CardBody className="pt-0 px-2 pb-2 max-h-[calc(100vh-160px)] overflow-y-auto">
+      <CardBody className="pt-0 px-2 pb-2">
+        <div ref={bodyRef} style={maxH ? { maxHeight: maxH } : undefined} className="overflow-y-auto">
         {habits.length === 0 ? (
           <p className="text-default-400 text-xs text-center py-4">No habits</p>
         ) : (
@@ -403,6 +448,7 @@ function HabitSection({
             </SortableContext>
           </DndContext>
         )}
+        </div>
       </CardBody>
     </Card>
   );
