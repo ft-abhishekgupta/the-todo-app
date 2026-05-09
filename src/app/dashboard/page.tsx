@@ -143,7 +143,7 @@ function LiveClock({ fmt }: { fmt: "12h" | "24h" }) {
 
 // Constrains the element's max-height so its bottom never exceeds the viewport
 // (with a small bottom padding). Recomputes when layout above shifts.
-function useViewportConstrainedMaxHeight(bottomPadding = 16, minHeight = 200) {
+function useViewportConstrainedMaxHeight(bottomPadding = 40, minHeight = 200) {
   const ref = useRef<HTMLDivElement>(null);
   const [maxH, setMaxH] = useState<number | undefined>(undefined);
 
@@ -755,7 +755,7 @@ export default function DashboardPage() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-background">
       <Navbar />
       <main className={`container mx-auto max-w-full px-3 sm:px-4 lg:px-[7%] py-4 sm:py-6 transition-all ${completedOpen ? "mr-80" : ""}`}>
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
