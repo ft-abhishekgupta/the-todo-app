@@ -7,6 +7,7 @@ export const siteConfig = {
     { label: "Projects", href: "/projects" },
     { label: "Lists", href: "/lists" },
     { label: "Habits", href: "/habits" },
+    { label: "Tracker", href: "/tracker" },
     { label: "Schedule", href: "/schedule" },
     { label: "Calendar", href: "/calendar" },
     { label: "Pomodoro", href: "/pomodoro" },

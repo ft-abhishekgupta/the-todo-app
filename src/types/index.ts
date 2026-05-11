@@ -196,3 +196,47 @@ export interface UserList {
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
+
+// Tracker Types
+export type TrackerFrequency = "daily" | "weekly" | "monthly";
+// "manual": user enters values directly.
+// "habits_completed" / "tasks_completed": value auto-derived from existing data.
+export type TrackerSource = "manual" | "habits_completed" | "tasks_completed";
+export type TrackerAggregation = "last" | "sum" | "average";
+
+export interface TrackerField {
+  id: string;
+  label: string;
+  unit?: string;
+  color?: string; // tailwind color name
+  target?: number;
+}
+
+export interface Tracker {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string;
+  icon?: string; // emoji
+  color: string; // tailwind color name
+  frequency: TrackerFrequency;
+  source: TrackerSource;
+  fields: TrackerField[]; // For manual trackers; auto-source uses [{ id: "value", label: "Count" }]
+  aggregation?: TrackerAggregation; // How to roll up multiple values in a period (manual). Default "last".
+  order: number;
+  isActive: boolean;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+export interface TrackerEntry {
+  id: string;
+  trackerId: string;
+  userId: string;
+  // Period key: daily=YYYY-MM-DD, weekly=YYYY-Www (ISO week, Mon start), monthly=YYYY-MM
+  periodKey: string;
+  values: Record<string, number>;
+  notes?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+}

@@ -72,5 +72,21 @@ service cloud.firestore {
       );
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
     }
+
+    // Trackers collection (custom metrics, daily/weekly/monthly)
+    match /trackers/{trackerId} {
+      allow read, write: if isAuth() && (
+        resource == null || resource.data.userId == request.auth.uid
+      );
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+    }
+
+    // Tracker entries collection
+    match /trackerEntries/{entryId} {
+      allow read, write: if isAuth() && (
+        resource == null || resource.data.userId == request.auth.uid
+      );
+      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+    }
   }
 }
