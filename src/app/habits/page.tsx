@@ -365,7 +365,6 @@ export default function HabitsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [statsHabit, setStatsHabit] = useState<Habit | null>(null);
 
-  const [selectedCategory, setSelectedCategory] = useState<HabitCategory | "all">("all");
   const [showOnlyToday, setShowOnlyToday] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("order");
 
@@ -383,7 +382,6 @@ export default function HabitsPage() {
 
   const filteredHabits = useMemo(() => {
     let list = habits;
-    if (selectedCategory !== "all") list = list.filter((h) => h.category === selectedCategory);
     if (showOnlyToday) list = list.filter((h) => isHabitVisibleOn(h, today));
     const sorted = [...list];
     sorted.sort((a, b) => {
@@ -399,7 +397,7 @@ export default function HabitsPage() {
       }
     });
     return sorted;
-  }, [habits, selectedCategory, showOnlyToday, sortMode, today]);
+  }, [habits, showOnlyToday, sortMode, today]);
 
   const visibleToday = habits.filter((h) => isHabitVisibleOn(h, today));
   const completedToday = visibleToday.filter((h) =>
@@ -574,29 +572,6 @@ export default function HabitsPage() {
 
           {/* Filters / sort */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex gap-1.5 flex-wrap">
-              <Chip
-                size="sm"
-                variant={selectedCategory === "all" ? "solid" : "bordered"}
-                color="primary"
-                className="cursor-pointer"
-                onClick={() => setSelectedCategory("all")}
-              >
-                All
-              </Chip>
-              {categoryOptions.map((cat) => (
-                <Chip
-                  key={cat.key}
-                  size="sm"
-                  variant={selectedCategory === cat.key ? "solid" : "bordered"}
-                  color="primary"
-                  className="cursor-pointer"
-                  onClick={() => setSelectedCategory(cat.key)}
-                >
-                  {cat.label}
-                </Chip>
-              ))}
-            </div>
             <div className="flex items-center gap-2 ml-auto">
               <div className="flex items-center gap-1.5 text-xs text-default-500">
                 <Filter size={12} />
@@ -619,7 +594,7 @@ export default function HabitsPage() {
             </div>
           </div>
 
-          {/* Habit List */}
+          {/* Habit Columns by Category */}
           {filteredHabits.length === 0 ? (
             <Card shadow="sm">
               <CardBody className="text-center py-8">
@@ -634,30 +609,54 @@ export default function HabitsPage() {
               </CardBody>
             </Card>
           ) : (
-            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis]}>
-              <SortableContext items={filteredHabits.map((h) => h.id)} strategy={verticalListSortingStrategy}>
-                {filteredHabits.map((habit) => {
-                  const log = logs.find((l) => l.habitId === habit.id && l.date === todayDate);
-                  const isCompleted = log?.completed || false;
-                  const currentCount = log?.count || 0;
-                  return (
-                    <SortableHabit
-                      key={habit.id}
-                      habit={habit}
-                      isCompleted={isCompleted}
-                      currentCount={currentCount}
-                      onToggle={() => toggleHabitLog(habit.id, todayDate, !isCompleted)}
-                      onIncrement={() => updateHabitCount(habit.id, todayDate, currentCount + 1, habit.targetCount || 1)}
-                      onDecrement={() => updateHabitCount(habit.id, todayDate, Math.max(0, currentCount - 1), habit.targetCount || 1)}
-                      onDelete={() => deleteHabit(habit.id)}
-                      onEdit={() => openEdit(habit)}
-                      onOpenStats={() => openStats(habit)}
-                      onTogglePause={() => setHabitPaused(habit.id, !habit.isPaused)}
-                    />
-                  );
-                })}
-              </SortableContext>
-            </DndContext>
+            (() => {
+              const groups = categoryOptions
+                .map((c) => ({ ...c, items: filteredHabits.filter((h) => h.category === c.key) }))
+                .filter((g) => g.items.length > 0);
+              return (
+                <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                  {groups.map((group) => (
+                    <Card key={group.key} shadow="sm" className="h-fit">
+                      <CardHeader className="px-3 py-2 flex justify-between items-center">
+                        <span className="text-xs font-semibold uppercase text-default-600">{group.label}</span>
+                        <Chip size="sm" variant="flat" className="h-5">{group.items.length}</Chip>
+                      </CardHeader>
+                      <CardBody className="pt-0 px-2 pb-2">
+                        <DndContext
+                          sensors={sensors}
+                          collisionDetection={closestCenter}
+                          onDragEnd={handleDragEnd}
+                          modifiers={[restrictToVerticalAxis]}
+                        >
+                          <SortableContext items={group.items.map((h) => h.id)} strategy={verticalListSortingStrategy}>
+                            {group.items.map((habit) => {
+                              const log = logs.find((l) => l.habitId === habit.id && l.date === todayDate);
+                              const isCompleted = log?.completed || false;
+                              const currentCount = log?.count || 0;
+                              return (
+                                <SortableHabit
+                                  key={habit.id}
+                                  habit={habit}
+                                  isCompleted={isCompleted}
+                                  currentCount={currentCount}
+                                  onToggle={() => toggleHabitLog(habit.id, todayDate, !isCompleted)}
+                                  onIncrement={() => updateHabitCount(habit.id, todayDate, currentCount + 1, habit.targetCount || 1)}
+                                  onDecrement={() => updateHabitCount(habit.id, todayDate, Math.max(0, currentCount - 1), habit.targetCount || 1)}
+                                  onDelete={() => deleteHabit(habit.id)}
+                                  onEdit={() => openEdit(habit)}
+                                  onOpenStats={() => openStats(habit)}
+                                  onTogglePause={() => setHabitPaused(habit.id, !habit.isPaused)}
+                                />
+                              );
+                            })}
+                          </SortableContext>
+                        </DndContext>
+                      </CardBody>
+                    </Card>
+                  ))}
+                </div>
+              );
+            })()
           )}
 
           {/* Heatmaps */}
