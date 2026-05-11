@@ -621,9 +621,6 @@ function SortableHabitRow({
       <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none shrink-0">
         <GripVertical size={14} className="text-default-400" />
       </button>
-      <button onClick={onSetFocus} className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-        <Star size={12} className={isFocused ? "text-secondary fill-secondary" : "text-default-300"} />
-      </button>
       {isCounter ? (
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {selectionMode && (
@@ -638,7 +635,7 @@ function SortableHabitRow({
               )}
             </div>
           )}
-          <span className={`text-sm truncate ${isCompleted ? "text-success" : ""}`}>{habit.title}</span>
+          <span title={habit.title} className={`text-sm truncate ${isCompleted ? "text-success" : ""}`}>{habit.title}</span>
           <div className="flex items-center gap-1 ml-auto shrink-0">
             <Progress size="sm" value={habit.targetCount ? (currentCount / habit.targetCount) * 100 : 0} color={isCompleted ? "success" : "primary"} className="w-14" />
             {!selectionMode && (
@@ -647,6 +644,13 @@ function SortableHabitRow({
               </Button>
             )}
             <span className="text-[10px] text-default-500">{currentCount}/{habit.targetCount}</span>
+            <button
+              onClick={onSetFocus}
+              title={isFocused ? "Remove from focus" : "Set as focus"}
+              className={`shrink-0 transition-opacity ${isFocused ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+            >
+              <Star size={12} className={isFocused ? "text-secondary fill-secondary" : "text-default-300"} />
+            </button>
           </div>
         </div>
       ) : (
@@ -673,12 +677,19 @@ function SortableHabitRow({
               </svg>
             )}
           </div>
-          <span className={`text-sm flex-1 truncate ${isCompleted ? "text-default-400 line-through" : ""}`}>{habit.title}</span>
+          <span title={habit.title} className={`text-sm flex-1 truncate ${isCompleted ? "text-default-400 line-through" : ""}`}>{habit.title}</span>
           {habit.streak > 0 && (
             <Chip size="sm" color="warning" variant="flat" className="h-5 shrink-0" startContent={<Flame size={8} />}>
               {habit.streak}
             </Chip>
           )}
+          <button
+            onClick={onSetFocus}
+            title={isFocused ? "Remove from focus" : "Set as focus"}
+            className={`shrink-0 transition-opacity ${isFocused ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+          >
+            <Star size={12} className={isFocused ? "text-secondary fill-secondary" : "text-default-300"} />
+          </button>
         </>
       )}
     </div>
