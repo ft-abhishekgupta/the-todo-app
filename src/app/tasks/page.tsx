@@ -349,7 +349,7 @@ function SortableTask({
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <p className={`text-[11px] sm:text-xs font-medium truncate cursor-text ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
+            <p title={task.title} className={`text-[11px] sm:text-xs font-medium truncate cursor-text ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
               {task.title}
             </p>
           )}

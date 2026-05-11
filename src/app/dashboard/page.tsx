@@ -762,7 +762,7 @@ function CompletedSidebar({
                         >
                           <CheckCircle2 size={10} className="text-white" />
                         </button>
-                        <span className="text-xs text-default-400 line-through truncate flex-1">{task.title}</span>
+                        <span title={task.title} className="text-xs text-default-400 line-through truncate flex-1">{task.title}</span>
                       </div>
                     ))}
                   </div>
@@ -785,7 +785,7 @@ function CompletedSidebar({
                         <CheckCircle2 size={10} className="text-white" />
                       </button>
                       {habit.icon && <span className="text-xs shrink-0">{habit.icon}</span>}
-                      <span className="text-xs text-default-400 line-through truncate flex-1">{habit.title}</span>
+                      <span title={habit.title} className="text-xs text-default-400 line-through truncate flex-1">{habit.title}</span>
                     </div>
                   ))}
                 </div>
@@ -1076,7 +1076,7 @@ export default function DashboardPage() {
                       onValueChange={() => updateTask(t.id, { status: t.status === "completed" ? "not_started" : "completed" })}
                       lineThrough
                     />
-                    <span className={`text-sm font-medium truncate flex-1 ${t.status === "completed" ? "line-through text-default-400" : ""}`}>{t.title}</span>
+                    <span title={t.title} className={`text-sm font-medium truncate flex-1 ${t.status === "completed" ? "line-through text-default-400" : ""}`}>{t.title}</span>
                   </div>
                 ))}
               </div>
@@ -1093,7 +1093,7 @@ export default function DashboardPage() {
                   return (
                     <div key={h.id} className="flex items-center gap-2 p-2 rounded-lg bg-secondary/5 border border-secondary/20">
                       <Checkbox size="sm" isSelected={done} onValueChange={() => toggleHabitLog(h.id, todayDate, !done)} lineThrough />
-                      <span className={`text-sm font-medium truncate ${done ? "line-through text-default-400" : ""}`}>{h.title}</span>
+                      <span title={h.title} className={`text-sm font-medium truncate ${done ? "line-through text-default-400" : ""}`}>{h.title}</span>
                     </div>
                   );
                 })}

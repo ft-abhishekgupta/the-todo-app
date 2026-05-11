@@ -244,7 +244,7 @@ export function SortableTaskItem({
             />
           ) : (
             <div className="flex items-center gap-1.5">
-              <span className={`text-sm truncate cursor-text ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
+              <span title={task.title} className={`text-sm truncate cursor-text ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
                 {task.title}
               </span>
               {projectName && <span className="text-[9px] text-default-400 shrink-0">· {projectName}</span>}
