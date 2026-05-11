@@ -13,6 +13,8 @@ import {
   Progress,
   useDisclosure,
   Tooltip,
+  Textarea,
+  Checkbox,
 } from "@nextui-org/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -35,6 +37,9 @@ import {
   Pause,
   SkipForward,
   RotateCcw,
+  Check,
+  Brain,
+  Coffee,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { SortableTaskItem } from "@/components/task/sortable-task-item";
@@ -846,6 +851,17 @@ export default function DashboardPage() {
     if (!loading && !user) router.push("/login");
   }, [user, loading, router]);
 
+  // When a Pomodoro session ends/cancels, clear the selected sets so the next
+  // focus session starts from scratch.
+  const prevSessionIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (prevSessionIdRef.current && !pomoTimer.currentSessionId) {
+      setSelectedPomoTaskIds(new Set());
+      setSelectedPomoHabitIds(new Set());
+    }
+    prevSessionIdRef.current = pomoTimer.currentSessionId;
+  }, [pomoTimer.currentSessionId]);
+
   if (loading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -953,6 +969,125 @@ export default function DashboardPage() {
     );
     updateTask(taskId, { subtasks: updated });
   };
+
+  // ---- Focus session view (dashboard stays mounted; URL doesn't change) ----
+  if (pomoTimer.currentSessionId) {
+    const minutes = Math.floor(pomoTimer.timeLeft / 60);
+    const seconds = pomoTimer.timeLeft % 60;
+    const progress = pomoTimer.activeDuration > 0
+      ? ((pomoTimer.activeDuration * 60 - pomoTimer.timeLeft) / (pomoTimer.activeDuration * 60)) * 100
+      : 0;
+    const modeLabel = pomoTimer.mode === "focus" ? "Focus" : pomoTimer.mode === "short_break" ? "Short Break" : "Long Break";
+    const modeColor: "primary" | "success" | "secondary" =
+      pomoTimer.mode === "focus" ? "primary" : pomoTimer.mode === "short_break" ? "success" : "secondary";
+    const modeIcon = pomoTimer.mode === "focus" ? <Brain size={14} /> : <Coffee size={14} />;
+    const focusTasks = todayTasks.filter((t) => selectedPomoTaskIds.has(t.id));
+    const focusHabits = habits.filter((h) => selectedPomoHabitIds.has(h.id));
+
+    return (
+      <div className="min-h-screen bg-background flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center px-4 py-8 max-w-lg mx-auto w-full">
+          <div className="flex items-center gap-3 mb-6">
+            <Clock size={14} className="text-default-400" />
+            <LiveClock fmt={timeFmt} />
+            <Chip size="sm" color={modeColor} variant="flat" startContent={modeIcon}>{modeLabel}</Chip>
+          </div>
+
+          <div className="relative mb-8">
+            <svg className="w-56 h-56 transform -rotate-90" viewBox="0 0 100 100">
+              <circle cx="50" cy="50" r="45" stroke="currentColor" strokeWidth="5" fill="none" className="text-default-100" />
+              <circle
+                cx="50" cy="50" r="45" stroke="currentColor" strokeWidth="5" fill="none"
+                strokeDasharray={`${2 * Math.PI * 45}`}
+                strokeDashoffset={`${2 * Math.PI * 45 * (1 - progress / 100)}`}
+                className={`transition-all duration-1000 ${
+                  modeColor === "primary" ? "text-primary" : modeColor === "success" ? "text-success" : "text-secondary"
+                }`}
+                strokeLinecap="round"
+              />
+            </svg>
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+              <span className="text-6xl font-bold tabular-nums">
+                {String(minutes).padStart(2, "0")}:{String(seconds).padStart(2, "0")}
+              </span>
+              <span className="text-[10px] uppercase tracking-wider text-default-400 mt-1">
+                of {pomoTimer.activeDuration} min
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 mb-3 flex-wrap justify-center">
+            <Button color={pomoTimer.isRunning ? "warning" : modeColor} size="lg" isIconOnly
+              onPress={pomoTimer.isRunning ? pomoTimer.pauseSession : pomoTimer.resumeSession}
+              aria-label={pomoTimer.isRunning ? "Pause" : "Resume"}>
+              {pomoTimer.isRunning ? <Pause size={20} /> : <Play size={20} />}
+            </Button>
+            <Button color="success" size="lg" isIconOnly onPress={pomoTimer.completeSession} aria-label="Complete">
+              <Check size={20} />
+            </Button>
+            <Button size="lg" variant="flat" isIconOnly onPress={() => pomoTimer.extendSession(5)} title="Add 5 minutes" aria-label="Add 5 minutes">
+              <Plus size={20} />
+            </Button>
+            <Button size="lg" variant="flat" isIconOnly onPress={pomoTimer.skipSession} title="Skip" aria-label="Skip">
+              <SkipForward size={20} />
+            </Button>
+            <Button color="danger" size="lg" variant="flat" isIconOnly onPress={pomoTimer.resetTimer} title="Cancel & discard" aria-label="Cancel">
+              <RotateCcw size={20} />
+            </Button>
+          </div>
+          <p className="text-[10px] text-default-400 mb-8">+5 min · Skip saves as skipped · Reset discards</p>
+
+          {focusTasks.length > 0 && (
+            <div className="w-full mb-4">
+              <p className="text-[10px] uppercase text-default-400 font-semibold mb-1.5">Focus Tasks</p>
+              <div className="space-y-1">
+                {focusTasks.map((t) => (
+                  <div key={t.id} className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
+                    <Checkbox
+                      size="sm"
+                      isSelected={t.status === "completed"}
+                      onValueChange={() => updateTask(t.id, { status: t.status === "completed" ? "not_started" : "completed" })}
+                      lineThrough
+                    />
+                    <span className={`text-sm font-medium truncate flex-1 ${t.status === "completed" ? "line-through text-default-400" : ""}`}>{t.title}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {focusHabits.length > 0 && (
+            <div className="w-full mb-4">
+              <p className="text-[10px] uppercase text-default-400 font-semibold mb-1.5">Focus Habits</p>
+              <div className="space-y-1">
+                {focusHabits.map((h) => {
+                  const log = logs.find((l: any) => l.habitId === h.id && l.date === todayDate);
+                  const done = log?.completed || false;
+                  return (
+                    <div key={h.id} className="flex items-center gap-2 p-2 rounded-lg bg-secondary/5 border border-secondary/20">
+                      <Checkbox size="sm" isSelected={done} onValueChange={() => toggleHabitLog(h.id, todayDate, !done)} lineThrough />
+                      <span className={`text-sm font-medium truncate ${done ? "line-through text-default-400" : ""}`}>{h.title}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <div className="w-full">
+            <Textarea
+              placeholder="Session notes..."
+              value={pomoTimer.notes}
+              onValueChange={pomoTimer.setNotes}
+              variant="bordered"
+              minRows={3}
+              classNames={{ inputWrapper: "border-1" }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen lg:h-screen lg:overflow-hidden bg-background">
