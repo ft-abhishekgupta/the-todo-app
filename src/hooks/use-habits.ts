@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import { format, subDays, startOfDay } from "date-fns";
 import { parseLocalDate } from "@/lib/time";
+import { isHabitVisibleOn } from "@/lib/habit-visibility";
 
 export function useHabits(category?: HabitCategory) {
   const { user } = useAuth();
@@ -220,6 +221,13 @@ export function useHabitMutations() {
   const updateStreak = async (habitId: string) => {
     if (!user) return;
 
+    const habitSnap = await getDocs(
+      query(collection(db, "habits"), where("userId", "==", user.uid))
+    );
+    const currentHabitDoc = habitSnap.docs.find((d) => d.id === habitId);
+    if (!currentHabitDoc) return;
+    const currentHabit = { id: currentHabitDoc.id, ...currentHabitDoc.data() } as Habit;
+
     const logsRef = collection(db, "habitLogs");
     const q = query(
       logsRef,
@@ -229,35 +237,51 @@ export function useHabitMutations() {
     );
 
     const snapshot = await getDocs(q);
-    const dates = snapshot.docs
-      .map((d) => d.data().date as string)
-      .sort()
-      .reverse();
+    const completedDates = new Set(snapshot.docs.map((d) => d.data().date as string));
 
+    // Walk backwards from today, only counting days the habit is visible on.
+    // A non-visible day is skipped (doesn't break or extend the streak).
     let streak = 0;
-    const today = format(new Date(), "yyyy-MM-dd");
-    let checkDate = today;
-
-    for (const date of dates) {
-      if (date === checkDate) {
-        streak++;
-        checkDate = format(subDays(parseLocalDate(checkDate), 1), "yyyy-MM-dd");
-      } else if (date < checkDate) {
-        break;
+    let cursor = parseLocalDate(format(new Date(), "yyyy-MM-dd"));
+    const MAX_LOOKBACK = 366;
+    for (let i = 0; i < MAX_LOOKBACK; i++) {
+      const visible = isHabitVisibleOn(currentHabit, cursor);
+      if (visible) {
+        const key = format(cursor, "yyyy-MM-dd");
+        if (completedDates.has(key)) {
+          streak++;
+        } else {
+          // Allow today to be incomplete without breaking streak (encourages completion later in day)
+          if (i === 0) {
+            // skip
+          } else {
+            break;
+          }
+        }
       }
+      cursor = subDays(cursor, 1);
     }
 
-    const habitRef = doc(db, "habits", habitId);
-    const habitSnap = await getDocs(
-      query(collection(db, "habits"), where("userId", "==", user.uid))
-    );
-    const currentHabit = habitSnap.docs.find((d) => d.id === habitId);
-    const longestStreak = Math.max(
-      streak,
-      (currentHabit?.data() as Habit)?.longestStreak || 0
-    );
+    const longestStreak = Math.max(streak, currentHabit.longestStreak || 0);
+    await updateDoc(doc(db, "habits", habitId), { streak, longestStreak });
+  };
 
-    await updateDoc(habitRef, { streak, longestStreak });
+  const updateHabit = async (habitId: string, updates: Partial<Habit>) => {
+    if (!user) throw new Error("Not authenticated");
+    const cleanUpdates = Object.fromEntries(
+      Object.entries(updates).filter(([_, v]) => v !== undefined)
+    );
+    await updateDoc(doc(db, "habits", habitId), {
+      ...cleanUpdates,
+      updatedAt: Timestamp.now(),
+    });
+    toast.success("Habit updated");
+  };
+
+  const setHabitPaused = async (habitId: string, paused: boolean) => {
+    if (!user) throw new Error("Not authenticated");
+    await updateDoc(doc(db, "habits", habitId), { isPaused: paused, updatedAt: Timestamp.now() });
+    toast.success(paused ? "Habit paused" : "Habit resumed");
   };
 
   const deleteHabit = async (habitId: string) => {
@@ -266,5 +290,5 @@ export function useHabitMutations() {
     toast.success("Habit archived");
   };
 
-  return { addHabit, toggleHabitLog, updateHabitCount, reorderHabits, deleteHabit };
+  return { addHabit, updateHabit, setHabitPaused, toggleHabitLog, updateHabitCount, reorderHabits, deleteHabit };
 }

@@ -59,7 +59,7 @@ export type HabitCategory =
   | "month_end"
   | "quarter_end";
 
-export type HabitFrequency = "daily" | "weekly" | "monthly";
+export type HabitFrequency = "daily" | "weekly" | "monthly" | "custom";
 export type HabitType = "checkbox" | "counter";
 
 export interface Habit {
@@ -73,10 +73,20 @@ export interface Habit {
   targetCount?: number; // For counter habits (e.g., 8 glasses of water)
   unit?: string; // e.g., "glasses", "minutes", "pages"
   targetDays?: number[]; // For weekly habits
+  customDays?: number[]; // For frequency=custom (Sun=0..Sat=6)
+  weekendDays?: number[]; // Override for weekend window (default [5,6,0,1])
+  monthEndStartDay?: number; // Default 28
+  monthEndEndDay?: number; // Default 5 (of next month)
+  quarterEndStartDay?: number; // Default 15 (of last month of quarter)
+  quarterEndEndDay?: number; // Default 7 (of first month of next quarter)
+  color?: string; // Tailwind color name (primary/success/warning/secondary/danger)
+  icon?: string; // Optional emoji
+  reminderTime?: string; // "HH:mm"
   streak: number;
   longestStreak: number;
   order: number;
   isActive: boolean;
+  isPaused?: boolean;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

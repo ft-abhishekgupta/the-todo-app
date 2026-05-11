@@ -45,6 +45,7 @@ import { useProjects } from "@/hooks/use-projects";
 import { format } from "date-fns";
 import { Timestamp } from "firebase/firestore";
 import { dateFnsTimeFormat, formatTimeStr } from "@/lib/time";
+import { isHabitVisibleOn } from "@/lib/habit-visibility";
 import {
   Task,
   TaskPriority,
@@ -656,7 +657,9 @@ export default function DashboardPage() {
 
   const activeTasks = todayTasks.filter((t) => t.status !== "completed");
   const completedTasks = todayTasks.filter((t) => t.status === "completed");
-  const completedHabits = logs.filter((l) => l.date === todayDate && l.completed).length;
+  const today = useMemo(() => new Date(), []);
+  const visibleHabits = useMemo(() => habits.filter((h) => isHabitVisibleOn(h, today)), [habits, today]);
+  const completedHabits = logs.filter((l) => l.date === todayDate && l.completed && visibleHabits.some((h) => h.id === l.habitId)).length;
   const completedPomodoros = sessions.filter((s) => s.isCompleted).length;
 
   const handleToggleTask = (id: string, completed: boolean) => {
@@ -767,7 +770,7 @@ export default function DashboardPage() {
                 {user.displayName?.split(" ")[0]}!
               </h1>
               <p className="text-default-500 text-xs">
-                {activeTasks.length} active · {completedTasks.length} done · {completedHabits}/{habits.length} habits
+                {activeTasks.length} active · {completedTasks.length} done · {completedHabits}/{visibleHabits.length} habits
               </p>
             </div>
             <LiveClock fmt={timeFmt} />
@@ -795,7 +798,7 @@ export default function DashboardPage() {
             <Card shadow="sm">
               <CardBody className="p-2 flex flex-row items-center gap-2">
                 <Flame size={12} className="text-success shrink-0" />
-                <span className="text-xs font-semibold">{completedHabits}/{habits.length}</span>
+                <span className="text-xs font-semibold">{completedHabits}/{visibleHabits.length}</span>
                 <div className="flex gap-0.5 flex-1">
                   {(["morning", "all_day", "night"] as const).map((key) => {
                     const catH = habits.filter((h) => h.category === key);
@@ -1071,7 +1074,7 @@ export default function DashboardPage() {
               />
             ))}
             <HabitSection
-              habits={habits}
+              habits={visibleHabits}
               logs={logs}
               todayDate={todayDate}
               focusHabitId={focusHabitId}
