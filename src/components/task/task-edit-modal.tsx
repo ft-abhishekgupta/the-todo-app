@@ -16,7 +16,7 @@ import {
 } from "@nextui-org/react";
 import { Trash2 } from "lucide-react";
 import { format } from "date-fns";
-import { Timestamp } from "firebase/firestore";
+import { Timestamp, deleteField } from "firebase/firestore";
 import { parseLocalDate } from "@/lib/time";
 import {
   Task,
@@ -149,6 +149,7 @@ export function TaskEditModal({
 
   const handleSubmit = async () => {
     if (!formTitle.trim()) return;
+    const isEdit = !!task;
     const taskData = {
       title: formTitle.trim(),
       description: formDescription.trim() || undefined,
@@ -156,8 +157,12 @@ export function TaskEditModal({
       priority: formPriority,
       category: formCategory,
       subtype: formSubtype || undefined,
-      deadline: formDeadline ? Timestamp.fromDate(parseLocalDate(formDeadline)) : undefined,
-      scheduledDate: formScheduledDate ? Timestamp.fromDate(parseLocalDate(formScheduledDate)) : undefined,
+      deadline: formDeadline
+        ? Timestamp.fromDate(parseLocalDate(formDeadline))
+        : (isEdit ? (deleteField() as never) : undefined),
+      scheduledDate: formScheduledDate
+        ? Timestamp.fromDate(parseLocalDate(formScheduledDate))
+        : (isEdit ? (deleteField() as never) : undefined),
       tags: formTags.split(",").map((t) => t.trim()).filter(Boolean),
       notes: formNotes.trim() || undefined,
       projectId: formProjectId || undefined,
