@@ -634,20 +634,29 @@ function TrackerFormModal({
     if (!trimmed) return;
     const finalFields: TrackerField[] = isAuto
       ? [
-          {
-            id: "value",
-            label: "Count",
-            unit: fields[0]?.unit?.trim() || undefined,
-            target: typeof fields[0]?.target === "number" ? fields[0]?.target : undefined,
-          },
+          (() => {
+            const base: TrackerField = { id: "value", label: "Count" };
+            const unit = fields[0]?.unit?.trim();
+            if (unit) base.unit = unit;
+            if (typeof fields[0]?.target === "number" && !Number.isNaN(fields[0]?.target)) {
+              base.target = fields[0]!.target;
+            }
+            return base;
+          })(),
         ]
-      : fields.map((f) => ({
-          id: f.id,
-          label: f.label.trim() || "Value",
-          unit: f.unit?.trim() || undefined,
-          target:
-            typeof f.target === "number" && !Number.isNaN(f.target) ? f.target : undefined,
-        }));
+      : fields.map((f) => {
+          const base: TrackerField = {
+            id: f.id,
+            label: f.label.trim() || "Value",
+          };
+          const unit = f.unit?.trim();
+          if (unit) base.unit = unit;
+          if (typeof f.target === "number" && !Number.isNaN(f.target)) {
+            base.target = f.target;
+          }
+          if (f.color) base.color = f.color;
+          return base;
+        });
     setSubmitting(true);
     try {
       await onSubmit({
