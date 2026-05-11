@@ -170,6 +170,17 @@ export function SortableTaskItem({
         if (e.button === 2) {
           e.preventDefault();
           e.stopPropagation();
+          // Suppress the native context menu that fires after right-mousedown.
+          // Using document capture ensures we catch it even if our element is
+          // unmounted or re-rendered by the modal opening.
+          const swallow = (ev: MouseEvent) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            document.removeEventListener("contextmenu", swallow, true);
+          };
+          document.addEventListener("contextmenu", swallow, true);
+          // Safety: clean up if no contextmenu fires within 300ms.
+          setTimeout(() => document.removeEventListener("contextmenu", swallow, true), 300);
           onOpenEditModal(task);
         }
       }}
