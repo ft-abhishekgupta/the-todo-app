@@ -97,6 +97,9 @@ export function SortableTaskItem({
   onUpdateSubtaskTitle,
   isFocused = false,
   projectName,
+  selectionMode = false,
+  isSelected = false,
+  onToggleSelect,
 }: {
   task: Task;
   onToggle: (id: string, completed: boolean) => void;
@@ -110,6 +113,9 @@ export function SortableTaskItem({
   onUpdateSubtaskTitle: (taskId: string, subtaskId: string, title: string) => void;
   isFocused?: boolean;
   projectName?: string;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: (taskId: string) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: task.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
@@ -165,7 +171,7 @@ export function SortableTaskItem({
       style={style}
       {...attributes}
       {...listeners}
-      className={`rounded-lg hover:bg-content2/50 transition-colors mb-1 cursor-grab active:cursor-grabbing touch-none ${isFocused ? "bg-primary/5 border border-primary/20" : ""}`}
+      className={`rounded-lg hover:bg-content2/50 transition-colors mb-1 cursor-grab active:cursor-grabbing touch-none ${isFocused ? "bg-primary/5 border border-primary/20" : ""} ${selectionMode && isSelected ? "ring-2 ring-warning bg-warning/5" : ""}`}
       onMouseDown={(e) => {
         if (e.button === 2) {
           e.preventDefault();
@@ -189,20 +195,34 @@ export function SortableTaskItem({
       <div className="flex items-center gap-2 p-2 group">
         <div
           className={`w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer shrink-0 ${
-            task.status === "completed"
+            selectionMode
+              ? isSelected ? "bg-warning border-warning" : "border-warning hover:border-warning"
+              : task.status === "completed"
               ? "bg-success border-success"
               : task.status === "blocked"
               ? "bg-warning/30 border-warning"
               : "border-default-300 hover:border-primary"
           }`}
-          onClick={(e) => { e.stopPropagation(); onToggle(task.id, task.status !== "completed"); }}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (selectionMode) {
+              onToggleSelect?.(task.id);
+            } else {
+              onToggle(task.id, task.status !== "completed");
+            }
+          }}
         >
-          {task.status === "completed" && (
+          {selectionMode && isSelected && (
             <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
             </svg>
           )}
-          {task.status === "blocked" && (
+          {!selectionMode && task.status === "completed" && (
+            <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+            </svg>
+          )}
+          {!selectionMode && task.status === "blocked" && (
             <div className="w-2 h-0.5 bg-warning rounded" />
           )}
         </div>

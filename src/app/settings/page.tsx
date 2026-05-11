@@ -30,6 +30,7 @@ import {
   Database,
   User,
   Clock,
+  Timer,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import {
@@ -267,6 +268,93 @@ export default function SettingsPage() {
                   <Tab key="12h" title="12-hour" />
                   <Tab key="24h" title="24-hour" />
                 </Tabs>
+              </div>
+            </CardBody>
+          </Card>
+
+          {/* Pomodoro Defaults */}
+          <Card>
+            <CardHeader className="flex gap-3">
+              <Timer size={20} />
+              <span className="font-semibold">Pomodoro Defaults</span>
+            </CardHeader>
+            <CardBody className="space-y-3">
+              <p className="text-default-500 text-xs">
+                Default durations (in minutes) used when starting Pomodoro sessions from the dashboard or pomodoro page.
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Input
+                  size="sm"
+                  type="number"
+                  label="Focus"
+                  variant="bordered"
+                  min={1}
+                  max={180}
+                  value={String(userProfile?.pomodoroSettings?.workDuration ?? 25)}
+                  onValueChange={(v) => {
+                    const n = Math.max(1, Math.min(180, parseInt(v || "0", 10) || 0));
+                    updateProfile({
+                      pomodoroSettings: {
+                        ...(userProfile?.pomodoroSettings || { workDuration: 25, shortBreakDuration: 5, longBreakDuration: 15, sessionsBeforeLongBreak: 4 }),
+                        workDuration: n,
+                      },
+                    });
+                  }}
+                />
+                <Input
+                  size="sm"
+                  type="number"
+                  label="Short break"
+                  variant="bordered"
+                  min={1}
+                  max={60}
+                  value={String(userProfile?.pomodoroSettings?.shortBreakDuration ?? 5)}
+                  onValueChange={(v) => {
+                    const n = Math.max(1, Math.min(60, parseInt(v || "0", 10) || 0));
+                    updateProfile({
+                      pomodoroSettings: {
+                        ...(userProfile?.pomodoroSettings || { workDuration: 25, shortBreakDuration: 5, longBreakDuration: 15, sessionsBeforeLongBreak: 4 }),
+                        shortBreakDuration: n,
+                      },
+                    });
+                  }}
+                />
+                <Input
+                  size="sm"
+                  type="number"
+                  label="Long break"
+                  variant="bordered"
+                  min={1}
+                  max={120}
+                  value={String(userProfile?.pomodoroSettings?.longBreakDuration ?? 15)}
+                  onValueChange={(v) => {
+                    const n = Math.max(1, Math.min(120, parseInt(v || "0", 10) || 0));
+                    updateProfile({
+                      pomodoroSettings: {
+                        ...(userProfile?.pomodoroSettings || { workDuration: 25, shortBreakDuration: 5, longBreakDuration: 15, sessionsBeforeLongBreak: 4 }),
+                        longBreakDuration: n,
+                      },
+                    });
+                  }}
+                />
+                <Input
+                  size="sm"
+                  type="number"
+                  label="Sessions / long break"
+                  variant="bordered"
+                  min={1}
+                  max={12}
+                  value={String(userProfile?.pomodoroSettings?.sessionsBeforeLongBreak ?? 4)}
+                  onValueChange={(v) => {
+                    const n = Math.max(1, Math.min(12, parseInt(v || "0", 10) || 0));
+                    updateProfile({
+                      pomodoroSettings: {
+                        ...(userProfile?.pomodoroSettings || { workDuration: 25, shortBreakDuration: 5, longBreakDuration: 15, sessionsBeforeLongBreak: 4 }),
+                        sessionsBeforeLongBreak: n,
+                      },
+                    });
+                  }}
+                />
               </div>
             </CardBody>
           </Card>

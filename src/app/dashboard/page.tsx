@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/providers/auth-provider";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useMemo, useRef, useLayoutEffect } from "react";
+import { useEffect, useState, useMemo, useRef, useLayoutEffect, useCallback } from "react";
 import {
   Card,
   CardBody,
@@ -31,13 +31,17 @@ import {
   ChevronRight,
   ChevronDown,
   Calendar,
+  Play,
+  Pause,
+  SkipForward,
+  RotateCcw,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { SortableTaskItem } from "@/components/task/sortable-task-item";
 import { TaskEditModal } from "@/components/task/task-edit-modal";
 import { useTodayTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { useHabits, useHabitLogs, useHabitMutations } from "@/hooks/use-habits";
-import { usePomodoroSessions } from "@/hooks/use-pomodoro";
+import { usePomodoroSessions, usePomodoroTimer } from "@/hooks/use-pomodoro";
 import { useSchedule } from "@/hooks/use-schedule";
 import { useProjects } from "@/hooks/use-projects";
 import { format } from "date-fns";
@@ -198,6 +202,9 @@ function TaskSection({
   onQuickAdd,
   sensors,
   projectsMap,
+  selectionMode = false,
+  selectedTaskIds,
+  onToggleSelect,
 }: {
   type: (typeof TASK_TYPES)[number];
   tasks: Task[];
@@ -215,6 +222,9 @@ function TaskSection({
   onQuickAdd: (title: string, category: TaskType, subtype?: TaskSubtype) => void;
   sensors: ReturnType<typeof useSensors>;
   projectsMap: Record<string, string>;
+  selectionMode?: boolean;
+  selectedTaskIds?: ReadonlySet<string>;
+  onToggleSelect?: (taskId: string) => void;
 }){
   const [addingForKey, setAddingForKey] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -285,6 +295,9 @@ function TaskSection({
       onUpdateSubtaskTitle={onUpdateSubtaskTitle}
       isFocused={focusTaskIds.has(task.id)}
       projectName={!hideProjectName && task.projectId ? projectsMap[task.projectId] : undefined}
+      selectionMode={selectionMode}
+      isSelected={selectedTaskIds?.has(task.id) || false}
+      onToggleSelect={onToggleSelect}
     />
   );
 
@@ -430,6 +443,9 @@ function HabitSection({
   onSetFocusHabit,
   onDragEnd,
   sensors,
+  selectionMode = false,
+  selectedHabitIds,
+  onToggleSelectHabit,
 }: {
   habits: Habit[];
   totalVisible: number;
@@ -442,6 +458,9 @@ function HabitSection({
   onSetFocusHabit: (id: string) => void;
   onDragEnd: (event: DragEndEvent) => void;
   sensors: ReturnType<typeof useSensors>;
+  selectionMode?: boolean;
+  selectedHabitIds?: ReadonlySet<string>;
+  onToggleSelectHabit?: (habitId: string) => void;
 }) {
   const completedCount = completedCountProp;
 
@@ -521,6 +540,9 @@ function HabitSection({
                           onToggle={() => onToggle(habit.id, !isCompleted)}
                           onIncrement={() => onIncrement(habit.id, currentCount + 1, habit.targetCount || 1)}
                           onSetFocus={() => onSetFocusHabit(habit.id)}
+                          selectionMode={selectionMode}
+                          isSelected={selectedHabitIds?.has(habit.id) || false}
+                          onToggleSelect={() => onToggleSelectHabit?.(habit.id)}
                         />
                       );
                     })}
@@ -544,6 +566,9 @@ function SortableHabitRow({
   onToggle,
   onIncrement,
   onSetFocus,
+  selectionMode = false,
+  isSelected = false,
+  onToggleSelect,
 }: {
   habit: Habit;
   isCompleted: boolean;
@@ -552,13 +577,16 @@ function SortableHabitRow({
   onToggle: () => void;
   onIncrement: () => void;
   onSetFocus: () => void;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id: habit.id });
   const style = { transform: CSS.Transform.toString(transform), transition };
   const isCounter = habit.type === "counter";
 
   return (
-    <div ref={setNodeRef} style={style} className={`flex items-center gap-2 p-2 rounded-lg hover:bg-content2 transition-colors group ${isFocused ? "bg-secondary/5" : ""}`}>
+    <div ref={setNodeRef} style={style} className={`flex items-center gap-2 p-2 rounded-lg hover:bg-content2 transition-colors group ${isFocused ? "bg-secondary/5" : ""} ${selectionMode && isSelected ? "ring-2 ring-warning bg-warning/5" : ""}`}>
       <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing touch-none shrink-0">
         <GripVertical size={14} className="text-default-400" />
       </button>
@@ -567,22 +595,48 @@ function SortableHabitRow({
       </button>
       {isCounter ? (
         <div className="flex items-center gap-2 flex-1 min-w-0">
+          {selectionMode && (
+            <div
+              className={`w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer shrink-0 ${isSelected ? "bg-warning border-warning" : "border-warning"}`}
+              onClick={(e) => { e.stopPropagation(); onToggleSelect?.(); }}
+            >
+              {isSelected && (
+                <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </div>
+          )}
           <span className={`text-sm truncate ${isCompleted ? "text-success" : ""}`}>{habit.title}</span>
           <div className="flex items-center gap-1 ml-auto shrink-0">
             <Progress size="sm" value={habit.targetCount ? (currentCount / habit.targetCount) * 100 : 0} color={isCompleted ? "success" : "primary"} className="w-14" />
-            <Button size="sm" isIconOnly variant="flat" color="primary" className="w-5 h-5 min-w-5" onPress={onIncrement}>
-              <Plus size={10} />
-            </Button>
+            {!selectionMode && (
+              <Button size="sm" isIconOnly variant="flat" color="primary" className="w-5 h-5 min-w-5" onPress={onIncrement}>
+                <Plus size={10} />
+              </Button>
+            )}
             <span className="text-[10px] text-default-500">{currentCount}/{habit.targetCount}</span>
           </div>
         </div>
       ) : (
         <>
           <div
-            className={`w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer shrink-0 ${isCompleted ? "bg-success border-success" : "border-default-300"}`}
-            onClick={onToggle}
+            className={`w-4 h-4 rounded border-2 flex items-center justify-center cursor-pointer shrink-0 ${
+              selectionMode
+                ? isSelected ? "bg-warning border-warning" : "border-warning"
+                : isCompleted ? "bg-success border-success" : "border-default-300"
+            }`}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (selectionMode) onToggleSelect?.(); else onToggle();
+            }}
           >
-            {isCompleted && (
+            {selectionMode && isSelected && (
+              <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+            {!selectionMode && isCompleted && (
               <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
               </svg>
@@ -731,6 +785,32 @@ export default function DashboardPage() {
   const [focusHabitId, setFocusHabitId] = useState<string>("");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const { isOpen: isEditModalOpen, onOpen: onEditModalOpen, onOpenChange: onEditModalOpenChange } = useDisclosure();
+
+  // Pomodoro selection mode + linked timer
+  const [pomodoroSelectionMode, setPomodoroSelectionMode] = useState(false);
+  const [selectedPomoTaskIds, setSelectedPomoTaskIds] = useState<Set<string>>(new Set());
+  const [selectedPomoHabitIds, setSelectedPomoHabitIds] = useState<Set<string>>(new Set());
+  const togglePomoTask = useCallback((id: string) => {
+    setSelectedPomoTaskIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+  const togglePomoHabit = useCallback((id: string) => {
+    setSelectedPomoHabitIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+  const pomoSettings = useMemo(() => ({
+    workDuration: userProfile?.pomodoroSettings?.workDuration || 25,
+    shortBreakDuration: userProfile?.pomodoroSettings?.shortBreakDuration || 5,
+    longBreakDuration: userProfile?.pomodoroSettings?.longBreakDuration || 15,
+    sessionsBeforeLongBreak: userProfile?.pomodoroSettings?.sessionsBeforeLongBreak || 4,
+  }), [userProfile?.pomodoroSettings]);
+  const pomoTimer = usePomodoroTimer(pomoSettings);
 
   // Tick once per minute so the schedule's "now" marker re-renders without
   // requiring the user to interact with the page.
@@ -928,16 +1008,77 @@ export default function DashboardPage() {
             </Card>
 
             {/* Pomodoro */}
-            <Card shadow="sm">
+            <Card shadow="sm" className={pomoTimer.isRunning || pomoTimer.currentSessionId ? "ring-2 ring-warning" : ""}>
               <CardBody className="p-2 flex flex-row items-center gap-2">
                 <Timer size={12} className="text-warning shrink-0" />
-                <span className="text-xs font-semibold">{completedPomodoros} · {completedPomodoros * 25}m</span>
-                <Button color="warning" variant="flat" size="sm" className="h-5 min-w-0 px-2 text-[10px] ml-auto" onPress={() => router.push("/pomodoro")}>
-                  Start
-                </Button>
+                {pomoTimer.currentSessionId ? (
+                  <>
+                    <span className="text-sm font-semibold tabular-nums">
+                      {Math.floor(pomoTimer.timeLeft / 60)}:{String(pomoTimer.timeLeft % 60).padStart(2, "0")}
+                    </span>
+                    <span className="text-[10px] text-default-500 truncate flex-1">
+                      {pomoTimer.mode === "focus" ? "Focus" : pomoTimer.mode === "short_break" ? "Break" : "Long break"}
+                    </span>
+                    <Button isIconOnly size="sm" variant="flat" color="warning" className="h-6 w-6 min-w-6"
+                      onPress={() => pomoTimer.isRunning ? pomoTimer.pauseSession() : pomoTimer.resumeSession()}>
+                      {pomoTimer.isRunning ? <Pause size={12} /> : <Play size={12} />}
+                    </Button>
+                    <Button isIconOnly size="sm" variant="flat" className="h-6 w-6 min-w-6" onPress={() => pomoTimer.skipSession()}>
+                      <SkipForward size={12} />
+                    </Button>
+                    <Button isIconOnly size="sm" variant="flat" color="danger" className="h-6 w-6 min-w-6" onPress={() => pomoTimer.resetTimer()}>
+                      <RotateCcw size={12} />
+                    </Button>
+                  </>
+                ) : pomodoroSelectionMode ? (
+                  <>
+                    <span className="text-xs font-semibold">
+                      {selectedPomoTaskIds.size + selectedPomoHabitIds.size} selected
+                    </span>
+                    <Button color="warning" size="sm" className="h-6 min-w-0 px-2 text-[10px] ml-auto"
+                      onPress={async () => {
+                        await pomoTimer.startSession({
+                          mode: "focus",
+                          taskIds: Array.from(selectedPomoTaskIds),
+                          habitIds: Array.from(selectedPomoHabitIds),
+                        });
+                        setPomodoroSelectionMode(false);
+                      }}
+                    >
+                      Start Focus
+                    </Button>
+                    <Button size="sm" variant="flat" className="h-6 min-w-0 px-2 text-[10px]"
+                      onPress={() => {
+                        setPomodoroSelectionMode(false);
+                        setSelectedPomoTaskIds(new Set());
+                        setSelectedPomoHabitIds(new Set());
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-xs font-semibold">{completedPomodoros} · {completedPomodoros * pomoSettings.workDuration}m</span>
+                    <Button color="warning" variant="flat" size="sm" className="h-5 min-w-0 px-2 text-[10px] ml-auto"
+                      onPress={() => setPomodoroSelectionMode(true)}>
+                      Focus
+                    </Button>
+                    <Button size="sm" variant="light" className="h-5 min-w-0 px-1.5 text-[10px]" onPress={() => router.push("/pomodoro")}>
+                      <Timer size={10} />
+                    </Button>
+                  </>
+                )}
               </CardBody>
             </Card>
           </div>
+
+          {pomodoroSelectionMode && (
+            <div className="rounded-lg bg-warning/10 border border-warning/30 px-3 py-2 text-xs text-warning-700 flex items-center gap-2">
+              <Timer size={14} />
+              <span><strong>Focus mode</strong> — select tasks and habits to work on, then press Start Focus. Selecting won&apos;t mark items complete.</span>
+            </div>
+          )}
 
           {/* Today's Schedule — linear timeline 6 AM to 12 AM */}
           <Card shadow="sm">
@@ -1188,6 +1329,9 @@ export default function DashboardPage() {
                 onQuickAdd={handleQuickAdd}
                 sensors={sensors}
                 projectsMap={projectsMap}
+                selectionMode={pomodoroSelectionMode}
+                selectedTaskIds={selectedPomoTaskIds}
+                onToggleSelect={togglePomoTask}
               />
             ))}
             <HabitSection
@@ -1202,6 +1346,9 @@ export default function DashboardPage() {
               onSetFocusHabit={(id) => setFocusHabitId(id)}
               onDragEnd={handleHabitDragEnd}
               sensors={sensors}
+              selectionMode={pomodoroSelectionMode}
+              selectedHabitIds={selectedPomoHabitIds}
+              onToggleSelectHabit={togglePomoHabit}
             />
           </div>
 
