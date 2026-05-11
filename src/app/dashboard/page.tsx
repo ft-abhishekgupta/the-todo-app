@@ -11,8 +11,6 @@ import {
   Button,
   Chip,
   Progress,
-  Select,
-  SelectItem,
   useDisclosure,
   Tooltip,
 } from "@nextui-org/react";
@@ -218,9 +216,8 @@ function TaskSection({
   sensors: ReturnType<typeof useSensors>;
   projectsMap: Record<string, string>;
 }){
-  const [isAdding, setIsAdding] = useState(false);
+  const [addingForKey, setAddingForKey] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
-  const [newSubtype, setNewSubtype] = useState<TaskSubtype | "">(type.subtypes[0]?.key || "");
   const [collapsedSubs, setCollapsedSubs] = useState<Set<string>>(new Set());
   const toggleSub = (key: string) => setCollapsedSubs((prev) => {
     const next = new Set(prev);
@@ -232,12 +229,64 @@ function TaskSection({
   const activeTasks = tasks.filter((t) => t.status !== "completed");
   const { ref: bodyRef, maxH } = useViewportConstrainedMaxHeight();
 
-  const handleAdd = () => {
+  const handleAddFor = (subtype?: TaskSubtype) => {
     if (!newTitle.trim()) return;
-    onQuickAdd(newTitle.trim(), type.key, newSubtype || undefined);
+    onQuickAdd(newTitle.trim(), type.key, subtype);
     setNewTitle("");
-    setIsAdding(false);
+    setAddingForKey(null);
   };
+
+  const startAdding = (key: string) => {
+    setAddingForKey((prev) => (prev === key ? null : key));
+    setNewTitle("");
+  };
+
+  // Renders an inline "add task" input row below a subtype/project header.
+  const renderAddRow = (key: string, subtype?: TaskSubtype) => (
+    <AnimatePresence>
+      {addingForKey === key && (
+        <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+          <div className="flex gap-1.5 px-2 pb-1.5 pt-1">
+            <Input
+              size="sm"
+              variant="bordered"
+              placeholder="Task title..."
+              value={newTitle}
+              onValueChange={setNewTitle}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddFor(subtype);
+                if (e.key === "Escape") setAddingForKey(null);
+              }}
+              classNames={{ inputWrapper: "border-1 h-7" }}
+              className="flex-1"
+              autoFocus
+            />
+            <Button size="sm" color="primary" isIconOnly className="h-7 w-7 min-w-7" onPress={() => handleAddFor(subtype)}>
+              <Plus size={12} />
+            </Button>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+
+  const renderTaskItem = (task: Task, hideProjectName = false) => (
+    <SortableTaskItem
+      key={task.id}
+      task={task}
+      onToggle={onToggle}
+      onSetFocus={onSetFocus}
+      onAddSubtask={onAddSubtask}
+      onToggleSubtask={onToggleSubtask}
+      onReorderSubtasks={onReorderSubtasks}
+      onUpdateTitle={onUpdateTitle}
+      onTogglePriority={onTogglePriority}
+      onOpenEditModal={onOpenEditModal}
+      onUpdateSubtaskTitle={onUpdateSubtaskTitle}
+      isFocused={focusTaskIds.has(task.id)}
+      projectName={!hideProjectName && task.projectId ? projectsMap[task.projectId] : undefined}
+    />
+  );
 
   return (
     <Card shadow="sm" className="h-fit">
@@ -247,152 +296,119 @@ function TaskSection({
           <span className="font-semibold text-sm">{type.label}</span>
           <Chip size="sm" variant="flat" className="h-5">{activeTasks.length}</Chip>
         </div>
-        <Button size="sm" isIconOnly variant="light" onPress={() => setIsAdding(!isAdding)}>
-          <Plus size={14} />
-        </Button>
-      </CardHeader>
-
-      <AnimatePresence>
-        {isAdding && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            className="px-3 overflow-hidden"
-          >
-            <div className="flex gap-1.5 pb-2">
-              <Input
-                size="sm"
-                variant="bordered"
-                placeholder="Task title..."
-                value={newTitle}
-                onValueChange={setNewTitle}
-                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-                classNames={{ inputWrapper: "border-1 h-8" }}
-                className="flex-1"
-                autoFocus
-              />
-              {type.subtypes.length > 0 && (
-                <Select
-                  size="sm"
-                  variant="bordered"
-                  className="w-28"
-                  selectedKeys={newSubtype ? [newSubtype] : []}
-                  onSelectionChange={(k) => setNewSubtype(Array.from(k)[0] as TaskSubtype)}
-                  aria-label="Subtype"
-                >
-                  {type.subtypes.map((s) => (
-                    <SelectItem key={s.key}>{s.label}</SelectItem>
-                  ))}
-                </Select>
-              )}
-              <Button size="sm" color="primary" isIconOnly className="h-8 w-8 min-w-8" onPress={handleAdd}>
-                <Plus size={14} />
-              </Button>
-            </div>
-          </motion.div>
+        {type.subtypes.length === 0 && (
+          <Button size="sm" isIconOnly variant="light" onPress={() => startAdding("__root__")}>
+            <Plus size={14} />
+          </Button>
         )}
-      </AnimatePresence>
+      </CardHeader>
 
       <CardBody className="pt-0 px-2 pb-2">
         <div ref={bodyRef} style={maxH ? { maxHeight: maxH } : undefined} className="overflow-y-auto">
-        {activeTasks.length === 0 ? (
-          <p className="text-default-400 text-xs text-center py-4">No tasks</p>
+        {type.subtypes.length === 0 ? (
+          <>
+            {renderAddRow("__root__")}
+            {activeTasks.length === 0 ? (
+              <p className="text-default-400 text-xs text-center py-4">No tasks</p>
+            ) : (
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => onDragEnd(e, type.key)} modifiers={[restrictToVerticalAxis]}>
+                <SortableContext items={activeTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                  {activeTasks.map((t) => renderTaskItem(t))}
+                </SortableContext>
+              </DndContext>
+            )}
+          </>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => onDragEnd(e, type.key)} modifiers={[restrictToVerticalAxis]}>
             <SortableContext items={activeTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-              {type.subtypes.length > 0 ? (
-                <>
-                  {type.subtypes.map((sub) => {
-                    const groupTasks = activeTasks.filter((t) => t.subtype === sub.key);
-                    if (groupTasks.length === 0) return null;
-                    const collapsed = collapsedSubs.has(sub.key);
-                    return (
-                      <div key={sub.key} className="mb-1.5">
-                        <button
-                          type="button"
-                          onClick={() => toggleSub(sub.key)}
-                          className="w-full flex items-center gap-1 text-[10px] font-semibold text-default-400 uppercase px-2 py-0.5 hover:text-default-600 transition-colors"
-                        >
-                          {collapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
-                          <span>{sub.label}</span>
-                          <span className="ml-1 text-default-300 normal-case font-normal">({groupTasks.length})</span>
-                        </button>
-                        {!collapsed && groupTasks.map((task) => (
-                          <SortableTaskItem
-                            key={task.id}
-                            task={task}
-                            onToggle={onToggle}
-                            onSetFocus={onSetFocus}
-                            onAddSubtask={onAddSubtask}
-                            onToggleSubtask={onToggleSubtask}
-                            onReorderSubtasks={onReorderSubtasks}
-                            onUpdateTitle={onUpdateTitle}
-                            onTogglePriority={onTogglePriority}
-                            onOpenEditModal={onOpenEditModal}
-                            onUpdateSubtaskTitle={onUpdateSubtaskTitle}
-                            isFocused={focusTaskIds.has(task.id)}
-                            projectName={task.projectId ? projectsMap[task.projectId] : undefined}
-                          />
-                        ))}
-                      </div>
-                    );
-                  })}
-                  {/* Tasks without subtype */}
-                  {activeTasks.filter((t) => !t.subtype || !type.subtypes.some((s) => s.key === t.subtype)).length > 0 && (() => {
-                    const otherTasks = activeTasks.filter((t) => !t.subtype || !type.subtypes.some((s) => s.key === t.subtype));
-                    const collapsed = collapsedSubs.has("__other__");
-                    return (
-                      <div className="mb-1.5">
-                        <button
-                          type="button"
-                          onClick={() => toggleSub("__other__")}
-                          className="w-full flex items-center gap-1 text-[10px] font-semibold text-default-400 uppercase px-2 py-0.5 hover:text-default-600 transition-colors"
-                        >
-                          {collapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
-                          <span>Other</span>
-                          <span className="ml-1 text-default-300 normal-case font-normal">({otherTasks.length})</span>
-                        </button>
-                        {!collapsed && otherTasks.map((task) => (
-                          <SortableTaskItem
-                            key={task.id}
-                            task={task}
-                            onToggle={onToggle}
-                            onSetFocus={onSetFocus}
-                            onAddSubtask={onAddSubtask}
-                            onToggleSubtask={onToggleSubtask}
-                            onReorderSubtasks={onReorderSubtasks}
-                            onUpdateTitle={onUpdateTitle}
-                            onTogglePriority={onTogglePriority}
-                            onOpenEditModal={onOpenEditModal}
-                            onUpdateSubtaskTitle={onUpdateSubtaskTitle}
-                            isFocused={focusTaskIds.has(task.id)}
-                            projectName={task.projectId ? projectsMap[task.projectId] : undefined}
-                          />
-                        ))}
-                      </div>
-                    );
-                  })()}
-                </>
-              ) : (
-                activeTasks.map((task) => (
-                  <SortableTaskItem
-                    key={task.id}
-                    task={task}
-                    onToggle={onToggle}
-                    onSetFocus={onSetFocus}
-                    onAddSubtask={onAddSubtask}
-                    onToggleSubtask={onToggleSubtask}
-                    onReorderSubtasks={onReorderSubtasks}
-                    onUpdateTitle={onUpdateTitle}
-                    onTogglePriority={onTogglePriority}
-                    onOpenEditModal={onOpenEditModal}
-                    onUpdateSubtaskTitle={onUpdateSubtaskTitle}
-                    isFocused={focusTaskIds.has(task.id)}
-                    projectName={task.projectId ? projectsMap[task.projectId] : undefined}
-                  />
-                ))
-              )}
+              {type.subtypes.map((sub) => {
+                const groupTasks = activeTasks.filter((t) => t.subtype === sub.key);
+                const collapsed = collapsedSubs.has(sub.key);
+                const isProjectSub = sub.key === "project_task";
+                return (
+                  <div key={sub.key} className="mb-1.5">
+                    <div className="flex items-center group/sub">
+                      <button
+                        type="button"
+                        onClick={() => toggleSub(sub.key)}
+                        className="flex-1 flex items-center gap-1 text-[10px] font-semibold text-default-400 uppercase px-2 py-0.5 hover:text-default-600 transition-colors"
+                      >
+                        {collapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+                        <span>{sub.label}</span>
+                        <span className="ml-1 text-default-300 normal-case font-normal">({groupTasks.length})</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => startAdding(sub.key)}
+                        aria-label={`Add task to ${sub.label}`}
+                        className="opacity-0 group-hover/sub:opacity-100 hover:text-primary text-default-400 px-1.5 py-0.5 transition-all"
+                      >
+                        <Plus size={12} />
+                      </button>
+                    </div>
+                    {renderAddRow(sub.key, sub.key)}
+                    {!collapsed && (
+                      isProjectSub ? (() => {
+                        // Group project tasks by projectId; alphabetical by project name; "(No project)" last.
+                        const byProject = new Map<string, Task[]>();
+                        for (const t of groupTasks) {
+                          const key = t.projectId || "__none__";
+                          const arr = byProject.get(key) || [];
+                          arr.push(t);
+                          byProject.set(key, arr);
+                        }
+                        const entries = Array.from(byProject.entries()).sort(([aId], [bId]) => {
+                          if (aId === "__none__") return 1;
+                          if (bId === "__none__") return -1;
+                          const an = projectsMap[aId] || "";
+                          const bn = projectsMap[bId] || "";
+                          return an.localeCompare(bn);
+                        });
+                        return entries.map(([projectId, projectTasks]) => {
+                          const projectName = projectId === "__none__" ? "(No project)" : (projectsMap[projectId] || "Unknown");
+                          const pkey = `${sub.key}:${projectId}`;
+                          const pCollapsed = collapsedSubs.has(pkey);
+                          return (
+                            <div key={pkey} className="ml-3 mb-1">
+                              <button
+                                type="button"
+                                onClick={() => toggleSub(pkey)}
+                                className="w-full flex items-center gap-1 text-[10px] font-medium text-default-500 px-2 py-0.5 hover:text-default-700 transition-colors"
+                              >
+                                {pCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+                                <span className="truncate">{projectName}</span>
+                                <span className="ml-1 text-default-300 font-normal">({projectTasks.length})</span>
+                              </button>
+                              {!pCollapsed && projectTasks.map((task) => renderTaskItem(task, true))}
+                            </div>
+                          );
+                        });
+                      })() : (
+                        groupTasks.map((task) => renderTaskItem(task))
+                      )
+                    )}
+                  </div>
+                );
+              })}
+              {/* Tasks with an unknown subtype */}
+              {activeTasks.filter((t) => !t.subtype || !type.subtypes.some((s) => s.key === t.subtype)).length > 0 && (() => {
+                const otherTasks = activeTasks.filter((t) => !t.subtype || !type.subtypes.some((s) => s.key === t.subtype));
+                const collapsed = collapsedSubs.has("__other__");
+                return (
+                  <div className="mb-1.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleSub("__other__")}
+                      className="w-full flex items-center gap-1 text-[10px] font-semibold text-default-400 uppercase px-2 py-0.5 hover:text-default-600 transition-colors"
+                    >
+                      {collapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+                      <span>Other</span>
+                      <span className="ml-1 text-default-300 normal-case font-normal">({otherTasks.length})</span>
+                    </button>
+                    {!collapsed && otherTasks.map((task) => renderTaskItem(task))}
+                  </div>
+                );
+              })()}
             </SortableContext>
           </DndContext>
         )}
