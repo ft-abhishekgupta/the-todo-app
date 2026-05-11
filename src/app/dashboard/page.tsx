@@ -220,6 +220,12 @@ function TaskSection({
   const [isAdding, setIsAdding] = useState(false);
   const [newTitle, setNewTitle] = useState("");
   const [newSubtype, setNewSubtype] = useState<TaskSubtype | "">(type.subtypes[0]?.key || "");
+  const [collapsedSubs, setCollapsedSubs] = useState<Set<string>>(new Set());
+  const toggleSub = (key: string) => setCollapsedSubs((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
   const Icon = type.icon;
 
   const activeTasks = tasks.filter((t) => t.status !== "completed");
@@ -299,10 +305,19 @@ function TaskSection({
                   {type.subtypes.map((sub) => {
                     const groupTasks = activeTasks.filter((t) => t.subtype === sub.key);
                     if (groupTasks.length === 0) return null;
+                    const collapsed = collapsedSubs.has(sub.key);
                     return (
                       <div key={sub.key} className="mb-1.5">
-                        <p className="text-[10px] font-semibold text-default-400 uppercase px-2 py-0.5">{sub.label}</p>
-                        {groupTasks.map((task) => (
+                        <button
+                          type="button"
+                          onClick={() => toggleSub(sub.key)}
+                          className="w-full flex items-center gap-1 text-[10px] font-semibold text-default-400 uppercase px-2 py-0.5 hover:text-default-600 transition-colors"
+                        >
+                          {collapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+                          <span>{sub.label}</span>
+                          <span className="ml-1 text-default-300 normal-case font-normal">({groupTasks.length})</span>
+                        </button>
+                        {!collapsed && groupTasks.map((task) => (
                           <SortableTaskItem
                             key={task.id}
                             task={task}
@@ -323,28 +338,40 @@ function TaskSection({
                     );
                   })}
                   {/* Tasks without subtype */}
-                  {activeTasks.filter((t) => !t.subtype || !type.subtypes.some((s) => s.key === t.subtype)).length > 0 && (
-                    <div className="mb-1.5">
-                      <p className="text-[10px] font-semibold text-default-400 uppercase px-2 py-0.5">Other</p>
-                      {activeTasks.filter((t) => !t.subtype || !type.subtypes.some((s) => s.key === t.subtype)).map((task) => (
-                        <SortableTaskItem
-                          key={task.id}
-                          task={task}
-                          onToggle={onToggle}
-                          onSetFocus={onSetFocus}
-                          onAddSubtask={onAddSubtask}
-                          onToggleSubtask={onToggleSubtask}
-                          onReorderSubtasks={onReorderSubtasks}
-                          onUpdateTitle={onUpdateTitle}
-                          onTogglePriority={onTogglePriority}
-                          onOpenEditModal={onOpenEditModal}
-                          onUpdateSubtaskTitle={onUpdateSubtaskTitle}
-                          isFocused={focusTaskIds.has(task.id)}
-                          projectName={task.projectId ? projectsMap[task.projectId] : undefined}
-                        />
-                      ))}
-                    </div>
-                  )}
+                  {activeTasks.filter((t) => !t.subtype || !type.subtypes.some((s) => s.key === t.subtype)).length > 0 && (() => {
+                    const otherTasks = activeTasks.filter((t) => !t.subtype || !type.subtypes.some((s) => s.key === t.subtype));
+                    const collapsed = collapsedSubs.has("__other__");
+                    return (
+                      <div className="mb-1.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleSub("__other__")}
+                          className="w-full flex items-center gap-1 text-[10px] font-semibold text-default-400 uppercase px-2 py-0.5 hover:text-default-600 transition-colors"
+                        >
+                          {collapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+                          <span>Other</span>
+                          <span className="ml-1 text-default-300 normal-case font-normal">({otherTasks.length})</span>
+                        </button>
+                        {!collapsed && otherTasks.map((task) => (
+                          <SortableTaskItem
+                            key={task.id}
+                            task={task}
+                            onToggle={onToggle}
+                            onSetFocus={onSetFocus}
+                            onAddSubtask={onAddSubtask}
+                            onToggleSubtask={onToggleSubtask}
+                            onReorderSubtasks={onReorderSubtasks}
+                            onUpdateTitle={onUpdateTitle}
+                            onTogglePriority={onTogglePriority}
+                            onOpenEditModal={onOpenEditModal}
+                            onUpdateSubtaskTitle={onUpdateSubtaskTitle}
+                            isFocused={focusTaskIds.has(task.id)}
+                            projectName={task.projectId ? projectsMap[task.projectId] : undefined}
+                          />
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </>
               ) : (
                 activeTasks.map((task) => (
