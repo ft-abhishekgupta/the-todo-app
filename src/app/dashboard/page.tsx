@@ -224,7 +224,7 @@ function TaskSection({
   onOpenEditModal: (task: Task) => void;
   onUpdateSubtaskTitle: (taskId: string, subtaskId: string, title: string) => void;
   onDragEnd: (event: DragEndEvent, category: TaskType) => void;
-  onQuickAdd: (title: string, category: TaskType, subtype?: TaskSubtype) => void;
+  onQuickAdd: (title: string, category: TaskType, subtype?: TaskSubtype, projectId?: string) => void;
   sensors: ReturnType<typeof useSensors>;
   projectsMap: Record<string, string>;
   selectionMode?: boolean;
@@ -255,9 +255,9 @@ function TaskSection({
   const activeTasks = tasks.filter((t) => t.status !== "completed");
   const { ref: bodyRef, maxH } = useViewportConstrainedMaxHeight();
 
-  const handleAddFor = (subtype?: TaskSubtype) => {
+  const handleAddFor = (subtype?: TaskSubtype, projectId?: string) => {
     if (!newTitle.trim()) return;
-    onQuickAdd(newTitle.trim(), type.key, subtype);
+    onQuickAdd(newTitle.trim(), type.key, subtype, projectId);
     setNewTitle("");
     setAddingForKey(null);
   };
@@ -268,7 +268,7 @@ function TaskSection({
   };
 
   // Renders an inline "add task" input row below a subtype/project header.
-  const renderAddRow = (key: string, subtype?: TaskSubtype) => (
+  const renderAddRow = (key: string, subtype?: TaskSubtype, projectId?: string) => (
     <AnimatePresence>
       {addingForKey === key && (
         <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
@@ -280,14 +280,14 @@ function TaskSection({
               value={newTitle}
               onValueChange={setNewTitle}
               onKeyDown={(e) => {
-                if (e.key === "Enter") handleAddFor(subtype);
+                if (e.key === "Enter") handleAddFor(subtype, projectId);
                 if (e.key === "Escape") setAddingForKey(null);
               }}
               classNames={{ inputWrapper: "border-1 h-7" }}
               className="flex-1"
               autoFocus
             />
-            <Button size="sm" color="primary" isIconOnly className="h-7 w-7 min-w-7" onPress={() => handleAddFor(subtype)}>
+            <Button size="sm" color="primary" isIconOnly className="h-7 w-7 min-w-7" onPress={() => handleAddFor(subtype, projectId)}>
               <Plus size={12} />
             </Button>
           </div>
@@ -397,17 +397,30 @@ function TaskSection({
                           const projectName = projectId === "__none__" ? "(No project)" : (projectsMap[projectId] || "Unknown");
                           const pkey = `${sub.key}:${projectId}`;
                           const pExpanded = expandedProjects.has(pkey);
+                          const addKey = `${sub.key}:${projectId}:add`;
+                          const realProjectId = projectId === "__none__" ? undefined : projectId;
                           return (
                             <div key={pkey} className="ml-3 mb-1">
-                              <button
-                                type="button"
-                                onClick={() => toggleProject(pkey)}
-                                className="w-full flex items-center gap-1 text-[10px] font-medium text-default-500 px-2 py-0.5 hover:text-default-700 transition-colors"
-                              >
-                                {pExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
-                                <span className="truncate">{projectName}</span>
-                                <span className="ml-1 text-default-300 font-normal">({projectTasks.length})</span>
-                              </button>
+                              <div className="flex items-center group/proj">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleProject(pkey)}
+                                  className="flex-1 flex items-center gap-1 text-[10px] font-medium text-default-500 px-2 py-0.5 hover:text-default-700 transition-colors"
+                                >
+                                  {pExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
+                                  <span className="truncate">{projectName}</span>
+                                  <span className="ml-1 text-default-300 font-normal">({projectTasks.length})</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => startAdding(addKey)}
+                                  aria-label={`Add task to ${projectName}`}
+                                  className="opacity-0 group-hover/proj:opacity-100 hover:text-primary text-default-400 px-1.5 py-0.5 transition-all"
+                                >
+                                  <Plus size={12} />
+                                </button>
+                              </div>
+                              {renderAddRow(addKey, sub.key, realProjectId)}
                               {pExpanded && projectTasks.map((task) => renderTaskItem(task, true))}
                             </div>
                           );
@@ -945,13 +958,14 @@ export default function DashboardPage() {
     reorderHabits(newOrder.map((h) => h.id));
   };
 
-  const handleQuickAdd = async (title: string, category: TaskType, subtype?: TaskSubtype) => {
+  const handleQuickAdd = async (title: string, category: TaskType, subtype?: TaskSubtype, projectId?: string) => {
     await addTask({
       title,
       status: "not_started",
       priority: "medium",
       category,
       subtype,
+      projectId,
       tags: [],
       subtasks: [],
       scheduledDate: Timestamp.fromDate(new Date()),
