@@ -211,15 +211,15 @@ function SortableHabit({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-2 p-2 sm:p-3 rounded-lg border border-divider hover:border-primary/20 transition-all group mb-2 bg-content1 ${
+      className={`flex items-center gap-1.5 p-2 rounded-lg border border-divider hover:border-primary/20 transition-all group mb-2 bg-content1 ${
         habit.isPaused ? "opacity-60" : ""
       }`}
     >
       <button {...attributes} {...listeners} className="cursor-grab active:cursor-grabbing shrink-0 touch-none">
-        <GripVertical size={14} className="text-default-400" />
+        <GripVertical size={12} className="text-default-400" />
       </button>
 
-      <div className={`w-1.5 h-8 rounded-full ${cls.dot} shrink-0`} />
+      <div className={`w-1 h-6 rounded-full ${cls.dot} shrink-0`} />
 
       {isCounter ? (
         <div className="flex items-center gap-2 flex-1 min-w-0">
@@ -282,24 +282,24 @@ function SortableHabit({
         </div>
       )}
 
-      <div className="flex items-center gap-0.5 shrink-0 opacity-0 group-hover:opacity-100">
+      <div className="hidden group-hover:flex items-center gap-0.5 shrink-0">
         <Tooltip content="Stats" delay={400}>
-          <Button isIconOnly size="sm" variant="light" onPress={onOpenStats}>
+          <Button isIconOnly size="sm" variant="light" className="w-6 h-6 min-w-6" onPress={onOpenStats}>
             <BarChart3 size={12} />
           </Button>
         </Tooltip>
         <Tooltip content="Edit" delay={400}>
-          <Button isIconOnly size="sm" variant="light" onPress={onEdit}>
+          <Button isIconOnly size="sm" variant="light" className="w-6 h-6 min-w-6" onPress={onEdit}>
             <Pencil size={12} />
           </Button>
         </Tooltip>
         <Tooltip content={habit.isPaused ? "Resume" : "Pause"} delay={400}>
-          <Button isIconOnly size="sm" variant="light" onPress={onTogglePause}>
+          <Button isIconOnly size="sm" variant="light" className="w-6 h-6 min-w-6" onPress={onTogglePause}>
             {habit.isPaused ? <Play size={12} /> : <Pause size={12} />}
           </Button>
         </Tooltip>
         <Tooltip content="Archive" delay={400}>
-          <Button isIconOnly size="sm" variant="light" color="danger" onPress={onDelete}>
+          <Button isIconOnly size="sm" variant="light" color="danger" className="w-6 h-6 min-w-6" onPress={onDelete}>
             <Trash2 size={12} />
           </Button>
         </Tooltip>
@@ -614,7 +614,7 @@ export default function HabitsPage() {
                 .map((c) => ({ ...c, items: filteredHabits.filter((h) => h.category === c.key) }))
                 .filter((g) => g.items.length > 0);
               return (
-                <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
                   {groups.map((group) => (
                     <Card key={group.key} shadow="sm" className="h-fit">
                       <CardHeader className="px-3 py-2 flex justify-between items-center">
