@@ -366,7 +366,7 @@ export default function HabitsPage() {
   const [statsHabit, setStatsHabit] = useState<Habit | null>(null);
 
   const [selectedCategory, setSelectedCategory] = useState<HabitCategory | "all">("all");
-  const [showOnlyToday, setShowOnlyToday] = useState(true);
+  const [showOnlyToday, setShowOnlyToday] = useState(false);
   const [sortMode, setSortMode] = useState<SortMode>("order");
 
   const sensors = useSensors(
