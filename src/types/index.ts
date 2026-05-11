@@ -201,9 +201,11 @@ export interface UserList {
 export type TrackerFrequency = "daily" | "weekly" | "monthly";
 // "manual": user enters values directly.
 // "habits_completed" / "tasks_completed" / "pomodoro": value auto-derived from existing data.
-export type TrackerSource = "manual" | "habits_completed" | "tasks_completed" | "pomodoro";
+export type TrackerSource = "manual" | "habits_completed" | "tasks_completed" | "pomodoro" | "schedule";
 export type TrackerAggregation = "last" | "sum" | "average";
 export type PomodoroTrackerMetric = "sessions" | "focus_minutes";
+export type ScheduleTrackerMetric = "minutes" | "hours" | "count";
+export type ScheduleEventType = "event" | "work" | "personal" | "growth" | "task" | "habit";
 
 export interface TrackerFilters {
   habitCategories?: HabitCategory[];
@@ -212,6 +214,8 @@ export interface TrackerFilters {
   taskSubtypes?: TaskSubtype[];
   projectIds?: string[];
   pomodoroMetric?: PomodoroTrackerMetric;
+  scheduleEventTypes?: ScheduleEventType[];
+  scheduleMetric?: ScheduleTrackerMetric;
 }
 
 export interface TrackerField {

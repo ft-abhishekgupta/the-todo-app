@@ -31,6 +31,7 @@ import {
   CheckCircle2,
   Flame,
   Clock,
+  Calendar,
   Maximize2,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
@@ -43,6 +44,7 @@ import { useTasks } from "@/hooks/use-tasks";
 import { useHabits, useHabitLogs } from "@/hooks/use-habits";
 import { useProjects } from "@/hooks/use-projects";
 import { usePomodoroSessionsRange } from "@/hooks/use-pomodoro";
+import { useSchedule } from "@/hooks/use-schedule";
 import {
   Tracker,
   TrackerEntry,
@@ -51,12 +53,15 @@ import {
   TrackerFrequency,
   TrackerSource,
   PomodoroTrackerMetric,
+  ScheduleTrackerMetric,
+  ScheduleEventType,
   HabitCategory,
   TaskCategory,
   TaskSubtype,
   Habit,
   Project,
   PomodoroSession,
+  ScheduleEvent,
   Task,
 } from "@/types";
 import {
@@ -89,6 +94,7 @@ const SOURCE_OPTIONS: { key: TrackerSource; label: string }[] = [
   { key: "habits_completed", label: "Auto: Habits completed" },
   { key: "tasks_completed", label: "Auto: Tasks completed" },
   { key: "pomodoro", label: "Auto: Pomodoro" },
+  { key: "schedule", label: "Auto: Schedule" },
 ];
 
 const COLOR_OPTIONS = ["primary", "success", "warning", "secondary", "danger", "default"];
@@ -122,6 +128,21 @@ const TASK_SUBTYPE_OPTIONS: { key: TaskSubtype; label: string }[] = [
 const POMODORO_METRIC_OPTIONS: { key: PomodoroTrackerMetric; label: string }[] = [
   { key: "sessions", label: "Completed focus sessions" },
   { key: "focus_minutes", label: "Focus minutes" },
+];
+
+const SCHEDULE_EVENT_TYPE_OPTIONS: { key: ScheduleEventType; label: string }[] = [
+  { key: "event", label: "Event" },
+  { key: "work", label: "Work" },
+  { key: "personal", label: "Personal" },
+  { key: "growth", label: "Growth" },
+  { key: "task", label: "Task" },
+  { key: "habit", label: "Habit" },
+];
+
+const SCHEDULE_METRIC_OPTIONS: { key: ScheduleTrackerMetric; label: string }[] = [
+  { key: "minutes", label: "Total minutes" },
+  { key: "hours", label: "Total hours" },
+  { key: "count", label: "Number of events" },
 ];
 
 // --------------------------------------------------------------------------
@@ -211,6 +232,7 @@ function computeAutoValue(
     habits: Habit[];
     habitLogs: any[];
     pomodoroSessions: PomodoroSession[];
+    scheduleEvents: ScheduleEvent[];
   }
 ): number {
   const { start, end } = periodRange(periodDate, tracker.frequency);
@@ -269,7 +291,33 @@ function computeAutoValue(
     return inRange.length;
   }
 
+  if (tracker.source === "schedule") {
+    const metric = f.scheduleMetric || "minutes";
+    const startKey = format(start, "yyyy-MM-dd");
+    const endKey = format(end, "yyyy-MM-dd");
+    const types = f.scheduleEventTypes;
+    const inRange = ctx.scheduleEvents.filter((e) => {
+      if (!e.date || e.date < startKey || e.date > endKey) return false;
+      if (types && types.length > 0 && !types.includes(e.type)) return false;
+      return true;
+    });
+    if (metric === "count") return inRange.length;
+    const totalMin = inRange.reduce((sum, e) => sum + diffMinutes(e.startTime, e.endTime), 0);
+    if (metric === "hours") return Math.round((totalMin / 60) * 10) / 10;
+    return Math.round(totalMin);
+  }
+
   return 0;
+}
+
+function diffMinutes(start?: string, end?: string): number {
+  if (!start || !end) return 0;
+  const [sh, sm] = start.split(":").map(Number);
+  const [eh, em] = end.split(":").map(Number);
+  if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return 0;
+  let mins = eh * 60 + em - (sh * 60 + sm);
+  if (mins < 0) mins += 24 * 60; // overnight
+  return mins;
 }
 
 // --------------------------------------------------------------------------
@@ -288,6 +336,7 @@ export default function TrackerPage() {
   const { logs } = useHabitLogs(undefined, 365);
   const { projects } = useProjects();
   const { sessions: pomodoroSessions } = usePomodoroSessionsRange(365);
+  const { events: scheduleEvents } = useSchedule();
 
   const formModal = useDisclosure();
   const detailModal = useDisclosure();
@@ -306,7 +355,7 @@ export default function TrackerPage() {
     return m;
   }, [entries]);
 
-  const ctx = { tasks, habits, habitLogs: logs, pomodoroSessions };
+  const ctx = { tasks, habits, habitLogs: logs, pomodoroSessions, scheduleEvents };
 
   if (authLoading || !user) {
     return (
@@ -431,7 +480,7 @@ function TrackerCard({
 }: {
   tracker: Tracker;
   entries: TrackerEntry[];
-  ctx: { tasks: Task[]; habits: Habit[]; habitLogs: any[]; pomodoroSessions: PomodoroSession[] };
+  ctx: { tasks: Task[]; habits: Habit[]; habitLogs: any[]; pomodoroSessions: PomodoroSession[]; scheduleEvents: ScheduleEvent[] };
   onEdit: () => void;
   onDelete: () => void;
   onOpenDetail: () => void;
@@ -457,7 +506,7 @@ function TrackerCard({
       return { date: d, key, total };
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tracker, entries, isAuto, ctx.tasks, ctx.habits, ctx.habitLogs, ctx.pomodoroSessions]);
+  }, [tracker, entries, isAuto, ctx.tasks, ctx.habits, ctx.habitLogs, ctx.pomodoroSessions, ctx.scheduleEvents]);
 
   const currentEntry = entryFor(currentKey);
   const currentValues: Record<string, number> = isAuto
@@ -589,6 +638,7 @@ function sourceIcon(source: TrackerSource) {
   if (source === "habits_completed") return Flame;
   if (source === "tasks_completed") return CheckCircle2;
   if (source === "pomodoro") return Clock;
+  if (source === "schedule") return Calendar;
   return LineChart;
 }
 
@@ -768,7 +818,7 @@ function TrackerDetailModal({
   onClose: () => void;
   tracker: Tracker;
   entries: TrackerEntry[];
-  ctx: { tasks: Task[]; habits: Habit[]; habitLogs: any[]; pomodoroSessions: PomodoroSession[] };
+  ctx: { tasks: Task[]; habits: Habit[]; habitLogs: any[]; pomodoroSessions: PomodoroSession[]; scheduleEvents: ScheduleEvent[] };
   onSaveEntry: (periodKey: string, values: Record<string, number>, notes?: string) => Promise<void>;
   onDeleteEntry: (id: string) => Promise<void>;
 }) {
@@ -1173,11 +1223,24 @@ function TrackerFormModal({
           (() => {
             const base: TrackerField = {
               id: "value",
-              label: source === "pomodoro" && filters.pomodoroMetric === "focus_minutes" ? "Minutes" : "Count",
+              label:
+                source === "pomodoro" && filters.pomodoroMetric === "focus_minutes"
+                  ? "Minutes"
+                  : source === "schedule"
+                  ? filters.scheduleMetric === "hours"
+                    ? "Hours"
+                    : filters.scheduleMetric === "count"
+                    ? "Count"
+                    : "Minutes"
+                  : "Count",
             };
             const unit = fields[0]?.unit?.trim();
             if (unit) base.unit = unit;
             else if (source === "pomodoro" && filters.pomodoroMetric === "focus_minutes") base.unit = "min";
+            else if (source === "schedule") {
+              if (filters.scheduleMetric === "hours") base.unit = "h";
+              else if (!filters.scheduleMetric || filters.scheduleMetric === "minutes") base.unit = "min";
+            }
             if (typeof fields[0]?.target === "number" && !Number.isNaN(fields[0]?.target)) {
               base.target = fields[0]!.target;
             }
@@ -1204,6 +1267,10 @@ function TrackerFormModal({
       if (filters.projectIds?.length) cleanFilters.projectIds = filters.projectIds;
     } else if (source === "pomodoro") {
       cleanFilters.pomodoroMetric = filters.pomodoroMetric || "sessions";
+    } else if (source === "schedule") {
+      cleanFilters.scheduleMetric = filters.scheduleMetric || "minutes";
+      if (filters.scheduleEventTypes?.length)
+        cleanFilters.scheduleEventTypes = filters.scheduleEventTypes;
     }
 
     const payload: any = {
@@ -1407,6 +1474,42 @@ function TrackerFormModal({
                       <SelectItem key={o.key}>{o.label}</SelectItem>
                     ))}
                   </Select>
+                )}
+
+                {source === "schedule" && (
+                  <div className="grid grid-cols-1 gap-2">
+                    <Select
+                      label="Metric"
+                      size="sm"
+                      selectedKeys={[filters.scheduleMetric || "minutes"]}
+                      onSelectionChange={(keys) =>
+                        setFilters((f) => ({
+                          ...f,
+                          scheduleMetric: Array.from(keys)[0] as ScheduleTrackerMetric,
+                        }))
+                      }
+                    >
+                      {SCHEDULE_METRIC_OPTIONS.map((o) => (
+                        <SelectItem key={o.key}>{o.label}</SelectItem>
+                      ))}
+                    </Select>
+                    <Select
+                      label="Event types (leave empty for all)"
+                      size="sm"
+                      selectionMode="multiple"
+                      selectedKeys={new Set(filters.scheduleEventTypes || [])}
+                      onSelectionChange={(keys) =>
+                        setFilters((f) => ({
+                          ...f,
+                          scheduleEventTypes: Array.from(keys) as ScheduleEventType[],
+                        }))
+                      }
+                    >
+                      {SCHEDULE_EVENT_TYPE_OPTIONS.map((o) => (
+                        <SelectItem key={o.key}>{o.label}</SelectItem>
+                      ))}
+                    </Select>
+                  </div>
                 )}
 
                 <p className="text-default-500">
