@@ -706,6 +706,9 @@ export default function DashboardPage() {
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
   );
 
+  const today = useMemo(() => new Date(), []);
+  const visibleHabits = useMemo(() => habits.filter((h) => isHabitVisibleOn(h, today)), [habits, today]);
+
   useEffect(() => {
     if (!loading && !user) router.push("/login");
   }, [user, loading, router]);
@@ -720,8 +723,6 @@ export default function DashboardPage() {
 
   const activeTasks = todayTasks.filter((t) => t.status !== "completed");
   const completedTasks = todayTasks.filter((t) => t.status === "completed");
-  const today = useMemo(() => new Date(), []);
-  const visibleHabits = useMemo(() => habits.filter((h) => isHabitVisibleOn(h, today)), [habits, today]);
   const completedHabits = logs.filter((l) => l.date === todayDate && l.completed && visibleHabits.some((h) => h.id === l.habitId)).length;
   const completedPomodoros = sessions.filter((s) => s.isCompleted).length;
 
