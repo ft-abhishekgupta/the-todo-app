@@ -233,8 +233,19 @@ function TaskSection({
 }){
   const [addingForKey, setAddingForKey] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
-  const [collapsedSubs, setCollapsedSubs] = useState<Set<string>>(new Set());
+  // All subtype groups (and the catch-all "__other__") collapsed by default.
+  const [collapsedSubs, setCollapsedSubs] = useState<Set<string>>(
+    () => new Set<string>([...type.subtypes.map((s) => s.key), "__other__"])
+  );
   const toggleSub = (key: string) => setCollapsedSubs((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+  // Project subgroups use opt-in expansion so they're collapsed by default
+  // even though their keys are only known after first render.
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => new Set<string>());
+  const toggleProject = (key: string) => setExpandedProjects((prev) => {
     const next = new Set(prev);
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
@@ -385,19 +396,19 @@ function TaskSection({
                         return entries.map(([projectId, projectTasks]) => {
                           const projectName = projectId === "__none__" ? "(No project)" : (projectsMap[projectId] || "Unknown");
                           const pkey = `${sub.key}:${projectId}`;
-                          const pCollapsed = collapsedSubs.has(pkey);
+                          const pExpanded = expandedProjects.has(pkey);
                           return (
                             <div key={pkey} className="ml-3 mb-1">
                               <button
                                 type="button"
-                                onClick={() => toggleSub(pkey)}
+                                onClick={() => toggleProject(pkey)}
                                 className="w-full flex items-center gap-1 text-[10px] font-medium text-default-500 px-2 py-0.5 hover:text-default-700 transition-colors"
                               >
-                                {pCollapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+                                {pExpanded ? <ChevronDown size={10} /> : <ChevronRight size={10} />}
                                 <span className="truncate">{projectName}</span>
                                 <span className="ml-1 text-default-300 font-normal">({projectTasks.length})</span>
                               </button>
-                              {!pCollapsed && projectTasks.map((task) => renderTaskItem(task, true))}
+                              {pExpanded && projectTasks.map((task) => renderTaskItem(task, true))}
                             </div>
                           );
                         });
@@ -484,7 +495,9 @@ function HabitSection({
     .map((c) => ({ ...c, items: habits.filter((h) => h.category === c.key) }))
     .filter((g) => g.items.length > 0);
 
-  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(
+    () => new Set<string>(["morning", "all_day", "night", "weekend", "month_end", "quarter_end"])
+  );
   const toggleCat = (key: string) => setCollapsedCats((prev) => {
     const next = new Set(prev);
     if (next.has(key)) next.delete(key); else next.add(key);
