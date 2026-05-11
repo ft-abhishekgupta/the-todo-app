@@ -1403,12 +1403,22 @@ export default function DashboardPage() {
                     {focusItems.map(({ type, task }) => {
                       const Icon = type.icon;
                       const nextSub = task.subtasks?.find((s) => !s.completed);
+                      const isPomoSelected = selectedPomoTaskIds.has(task.id);
                       return (
                         <div
                           key={task.id}
-                          className="p-2 rounded-lg bg-primary/5 border border-primary/20 hover:bg-primary/10 cursor-pointer"
-                          onClick={() => handleOpenEditModal(task)}
-                          title="Click to edit"
+                          className={`p-2 rounded-lg border cursor-pointer ${
+                            pomodoroSelectionMode
+                              ? isPomoSelected
+                                ? "bg-warning/10 border-warning ring-2 ring-warning"
+                                : "bg-content1 border-warning/40 hover:bg-warning/5"
+                              : "bg-primary/5 border-primary/20 hover:bg-primary/10"
+                          }`}
+                          onClick={() => {
+                            if (pomodoroSelectionMode) togglePomoTask(task.id);
+                            else handleOpenEditModal(task);
+                          }}
+                          title={pomodoroSelectionMode ? "Click to include in focus session" : "Click to edit"}
                         >
                           <div className="flex items-center gap-1.5 mb-0.5">
                             <Icon size={11} className={type.color} />
@@ -1417,11 +1427,26 @@ export default function DashboardPage() {
                           <div className="flex items-start gap-1.5">
                             <div
                               className={`w-3.5 h-3.5 mt-0.5 rounded border-2 flex items-center justify-center cursor-pointer shrink-0 ${
-                                task.status === "completed" ? "bg-success border-success" : "border-default-300 hover:border-primary"
+                                pomodoroSelectionMode
+                                  ? isPomoSelected
+                                    ? "bg-warning border-warning"
+                                    : "border-warning"
+                                  : task.status === "completed"
+                                  ? "bg-success border-success"
+                                  : "border-default-300 hover:border-primary"
                               }`}
-                              onClick={(e) => { e.stopPropagation(); handleToggleTask(task.id, task.status !== "completed"); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (pomodoroSelectionMode) togglePomoTask(task.id);
+                                else handleToggleTask(task.id, task.status !== "completed");
+                              }}
                             >
-                              {task.status === "completed" && (
+                              {pomodoroSelectionMode && isPomoSelected && (
+                                <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                              {!pomodoroSelectionMode && task.status === "completed" && (
                                 <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                 </svg>
@@ -1435,7 +1460,10 @@ export default function DashboardPage() {
                             <div className="flex items-center gap-1.5 mt-1.5 pl-2 border-l-2 border-primary/30">
                               <div
                                 className="w-3 h-3 rounded-sm border border-default-300 cursor-pointer hover:border-primary shrink-0"
-                                onClick={(e) => { e.stopPropagation(); handleToggleSubtask(task.id, nextSub.id); }}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (!pomodoroSelectionMode) handleToggleSubtask(task.id, nextSub.id);
+                                }}
                               />
                               <span className="text-[11px] text-default-600 truncate">{nextSub.title}</span>
                             </div>
@@ -1445,11 +1473,21 @@ export default function DashboardPage() {
                     })}
                     {focusHabit && (() => {
                       const isDone = logs.some((l) => l.habitId === focusHabit.id && l.date === todayDate && l.completed);
+                      const isPomoSelected = selectedPomoHabitIds.has(focusHabit.id);
                       return (
                         <div
-                          className="p-2 rounded-lg bg-secondary/5 border border-secondary/20 hover:bg-secondary/10 cursor-pointer"
-                          onClick={() => router.push("/habits")}
-                          title="Go to habits"
+                          className={`p-2 rounded-lg border cursor-pointer ${
+                            pomodoroSelectionMode
+                              ? isPomoSelected
+                                ? "bg-warning/10 border-warning ring-2 ring-warning"
+                                : "bg-content1 border-warning/40 hover:bg-warning/5"
+                              : "bg-secondary/5 border-secondary/20 hover:bg-secondary/10"
+                          }`}
+                          onClick={() => {
+                            if (pomodoroSelectionMode) togglePomoHabit(focusHabit.id);
+                            else router.push("/habits");
+                          }}
+                          title={pomodoroSelectionMode ? "Click to include in focus session" : "Go to habits"}
                         >
                           <div className="flex items-center gap-1.5 mb-0.5">
                             <Flame size={11} className="text-secondary" />
@@ -1458,11 +1496,26 @@ export default function DashboardPage() {
                           <div className="flex items-start gap-1.5">
                             <div
                               className={`w-3.5 h-3.5 mt-0.5 rounded border-2 flex items-center justify-center cursor-pointer shrink-0 ${
-                                isDone ? "bg-secondary border-secondary" : "border-default-300 hover:border-secondary"
+                                pomodoroSelectionMode
+                                  ? isPomoSelected
+                                    ? "bg-warning border-warning"
+                                    : "border-warning"
+                                  : isDone
+                                  ? "bg-secondary border-secondary"
+                                  : "border-default-300 hover:border-secondary"
                               }`}
-                              onClick={(e) => { e.stopPropagation(); toggleHabitLog(focusHabit.id, todayDate, !isDone); }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (pomodoroSelectionMode) togglePomoHabit(focusHabit.id);
+                                else toggleHabitLog(focusHabit.id, todayDate, !isDone);
+                              }}
                             >
-                              {isDone && (
+                              {pomodoroSelectionMode && isPomoSelected && (
+                                <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                              {!pomodoroSelectionMode && isDone && (
                                 <svg className="w-2 h-2 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                                 </svg>
