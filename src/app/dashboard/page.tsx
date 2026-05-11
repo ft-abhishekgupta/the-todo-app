@@ -404,6 +404,8 @@ function TaskSection({
 
 function HabitSection({
   habits,
+  totalVisible,
+  completedCount: completedCountProp,
   logs,
   todayDate,
   focusHabitId,
@@ -414,6 +416,8 @@ function HabitSection({
   sensors,
 }: {
   habits: Habit[];
+  totalVisible: number;
+  completedCount: number;
   logs: any[];
   todayDate: string;
   focusHabitId?: string;
@@ -423,9 +427,7 @@ function HabitSection({
   onDragEnd: (event: DragEndEvent) => void;
   sensors: ReturnType<typeof useSensors>;
 }) {
-  const completedCount = habits.filter((h) =>
-    logs.some((l: any) => l.habitId === h.id && l.date === todayDate && l.completed)
-  ).length;
+  const completedCount = completedCountProp;
 
   const focusHabit = habits.find((h) => h.id === focusHabitId) || habits[0];
   const { ref: bodyRef, maxH } = useViewportConstrainedMaxHeight();
@@ -455,7 +457,7 @@ function HabitSection({
         <div className="flex items-center gap-2">
           <Flame size={16} className="text-secondary" />
           <span className="font-semibold text-sm">Habits</span>
-          <Chip size="sm" variant="flat" className="h-5">{completedCount}/{habits.length}</Chip>
+          <Chip size="sm" variant="flat" className="h-5">{completedCount}/{totalVisible}</Chip>
         </div>
       </CardHeader>
 
@@ -472,7 +474,7 @@ function HabitSection({
       <CardBody className="pt-0 px-2 pb-2">
         <div ref={bodyRef} style={maxH ? { maxHeight: maxH } : undefined} className="overflow-y-auto">
         {habits.length === 0 ? (
-          <p className="text-default-400 text-xs text-center py-4">No habits</p>
+          <p className="text-default-400 text-xs text-center py-4">{totalVisible === 0 ? "No habits" : "All habits done! 🎉"}</p>
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} modifiers={[restrictToVerticalAxis]}>
             <SortableContext items={habits.map((h) => h.id)} strategy={verticalListSortingStrategy}>
@@ -584,14 +586,18 @@ function SortableHabitRow({
 
 function CompletedSidebar({
   tasks,
+  habits,
   isOpen,
   onToggle,
   onUncheck,
+  onUncheckHabit,
 }: {
   tasks: Task[];
+  habits: Habit[];
   isOpen: boolean;
   onToggle: () => void;
   onUncheck: (id: string) => void;
+  onUncheckHabit: (id: string) => void;
 }) {
   const grouped = TASK_TYPES.reduce(
     (acc, type) => {
@@ -602,7 +608,8 @@ function CompletedSidebar({
     {} as Record<string, Task[]>
   );
 
-  if (tasks.length === 0) return null;
+  const totalCount = tasks.length + habits.length;
+  if (totalCount === 0) return null;
 
   return (
     <div className="fixed right-0 top-16 bottom-0 z-30">
@@ -628,7 +635,7 @@ function CompletedSidebar({
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-sm flex items-center gap-2">
                   <CheckCircle2 size={16} className="text-success" />
-                  Completed Today ({tasks.length})
+                  Completed Today ({totalCount})
                 </h3>
                 <Button isIconOnly size="sm" variant="light" onPress={onToggle}>
                   <X size={14} />
@@ -660,6 +667,28 @@ function CompletedSidebar({
                   </div>
                 );
               })}
+              {habits.length > 0 && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Flame size={12} className="text-secondary" />
+                    <span className="text-xs font-medium text-default-500 uppercase">Habits</span>
+                  </div>
+                  {habits.map((habit) => (
+                    <div key={habit.id} className="flex items-center gap-2 py-1 px-2 group">
+                      <button
+                        type="button"
+                        onClick={() => onUncheckHabit(habit.id)}
+                        aria-label={`Mark "${habit.title}" as not completed`}
+                        className="w-4 h-4 rounded-full bg-success border border-success flex items-center justify-center shrink-0 hover:bg-success/80 transition-colors cursor-pointer"
+                      >
+                        <CheckCircle2 size={10} className="text-white" />
+                      </button>
+                      {habit.icon && <span className="text-xs shrink-0">{habit.icon}</span>}
+                      <span className="text-xs text-default-400 line-through truncate flex-1">{habit.title}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </motion.div>
         )}
@@ -708,6 +737,14 @@ export default function DashboardPage() {
 
   const today = useMemo(() => new Date(), []);
   const visibleHabits = useMemo(() => habits.filter((h) => isHabitVisibleOn(h, today)), [habits, today]);
+  const incompleteVisibleHabits = useMemo(
+    () => visibleHabits.filter((h) => !logs.some((l) => l.habitId === h.id && l.date === todayDate && l.completed)),
+    [visibleHabits, logs, todayDate]
+  );
+  const completedVisibleHabits = useMemo(
+    () => visibleHabits.filter((h) => logs.some((l) => l.habitId === h.id && l.date === todayDate && l.completed)),
+    [visibleHabits, logs, todayDate]
+  );
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
@@ -1138,7 +1175,9 @@ export default function DashboardPage() {
               />
             ))}
             <HabitSection
-              habits={visibleHabits}
+              habits={incompleteVisibleHabits}
+              totalVisible={visibleHabits.length}
+              completedCount={completedHabits}
               logs={logs}
               todayDate={todayDate}
               focusHabitId={focusHabitId}
@@ -1153,7 +1192,14 @@ export default function DashboardPage() {
         </motion.div>
       </main>
 
-      <CompletedSidebar tasks={completedTasks} isOpen={completedOpen} onToggle={() => setCompletedOpen(!completedOpen)} onUncheck={(id) => handleToggleTask(id, false)} />
+      <CompletedSidebar
+        tasks={completedTasks}
+        habits={completedVisibleHabits}
+        isOpen={completedOpen}
+        onToggle={() => setCompletedOpen(!completedOpen)}
+        onUncheck={(id) => handleToggleTask(id, false)}
+        onUncheckHabit={(id) => toggleHabitLog(id, todayDate, false)}
+      />
 
       <TaskEditModal
         isOpen={isEditModalOpen}
