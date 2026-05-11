@@ -53,6 +53,7 @@ import {
   TaskSubtype,
   Subtask,
   Habit,
+  HabitCategory,
 } from "@/types";
 import {
   DndContext,
@@ -429,6 +430,25 @@ function HabitSection({
   const focusHabit = habits.find((h) => h.id === focusHabitId) || habits[0];
   const { ref: bodyRef, maxH } = useViewportConstrainedMaxHeight();
 
+  const HABIT_CATEGORIES: { key: HabitCategory; label: string }[] = [
+    { key: "morning", label: "Morning" },
+    { key: "all_day", label: "All Day" },
+    { key: "night", label: "Night" },
+    { key: "weekend", label: "Weekend" },
+    { key: "month_end", label: "Month End" },
+    { key: "quarter_end", label: "Quarter End" },
+  ];
+  const groupedHabits = HABIT_CATEGORIES
+    .map((c) => ({ ...c, items: habits.filter((h) => h.category === c.key) }))
+    .filter((g) => g.items.length > 0);
+
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
+  const toggleCat = (key: string) => setCollapsedCats((prev) => {
+    const next = new Set(prev);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
+  });
+
   return (
     <Card shadow="sm" className="h-fit">
       <CardHeader className="flex justify-between items-center px-3 py-2.5">
@@ -456,21 +476,37 @@ function HabitSection({
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd} modifiers={[restrictToVerticalAxis]}>
             <SortableContext items={habits.map((h) => h.id)} strategy={verticalListSortingStrategy}>
-              {habits.map((habit) => {
-                const log = logs.find((l: any) => l.habitId === habit.id && l.date === todayDate);
-                const isCompleted = log?.completed || false;
-                const currentCount = log?.count || 0;
+              {groupedHabits.map((group) => {
+                const collapsed = collapsedCats.has(group.key);
                 return (
-                  <SortableHabitRow
-                    key={habit.id}
-                    habit={habit}
-                    isCompleted={isCompleted}
-                    currentCount={currentCount}
-                    isFocused={habit.id === focusHabit?.id}
-                    onToggle={() => onToggle(habit.id, !isCompleted)}
-                    onIncrement={() => onIncrement(habit.id, currentCount + 1, habit.targetCount || 1)}
-                    onSetFocus={() => onSetFocusHabit(habit.id)}
-                  />
+                  <div key={group.key} className="mb-1.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleCat(group.key)}
+                      className="w-full flex items-center gap-1 text-[10px] font-semibold text-default-400 uppercase px-2 py-0.5 hover:text-default-600 transition-colors"
+                    >
+                      {collapsed ? <ChevronRight size={10} /> : <ChevronDown size={10} />}
+                      <span>{group.label}</span>
+                      <span className="ml-1 text-default-300 normal-case font-normal">({group.items.length})</span>
+                    </button>
+                    {!collapsed && group.items.map((habit) => {
+                      const log = logs.find((l: any) => l.habitId === habit.id && l.date === todayDate);
+                      const isCompleted = log?.completed || false;
+                      const currentCount = log?.count || 0;
+                      return (
+                        <SortableHabitRow
+                          key={habit.id}
+                          habit={habit}
+                          isCompleted={isCompleted}
+                          currentCount={currentCount}
+                          isFocused={habit.id === focusHabit?.id}
+                          onToggle={() => onToggle(habit.id, !isCompleted)}
+                          onIncrement={() => onIncrement(habit.id, currentCount + 1, habit.targetCount || 1)}
+                          onSetFocus={() => onSetFocusHabit(habit.id)}
+                        />
+                      );
+                    })}
+                  </div>
                 );
               })}
             </SortableContext>
