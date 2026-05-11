@@ -493,7 +493,7 @@ function HabitSection({
 }) {
   const completedCount = completedCountProp;
 
-  const focusHabit = habits.find((h) => h.id === focusHabitId) || habits[0];
+  const focusHabit = focusHabitId ? habits.find((h) => h.id === focusHabitId) : undefined;
   const { ref: bodyRef, maxH } = useViewportConstrainedMaxHeight();
 
   const HABIT_CATEGORIES: { key: HabitCategory; label: string }[] = [
@@ -1516,7 +1516,7 @@ export default function DashboardPage() {
               focusHabitId={focusHabitId}
               onToggle={(habitId, completed) => toggleHabitLog(habitId, todayDate, completed)}
               onIncrement={(habitId, count, target) => updateHabitCount(habitId, todayDate, count, target)}
-              onSetFocusHabit={(id) => setFocusHabitId(id)}
+              onSetFocusHabit={(id) => setFocusHabitId((prev) => (prev === id ? "" : id))}
               onDragEnd={handleHabitDragEnd}
               sensors={sensors}
               selectionMode={pomodoroSelectionMode}
