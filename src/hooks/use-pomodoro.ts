@@ -63,6 +63,41 @@ export function usePomodoroSessions(date?: string) {
   return { sessions, loading };
 }
 
+export function usePomodoroSessionsRange(days: number = 365) {
+  const { user } = useAuth();
+  const [sessions, setSessions] = useState<PomodoroSession[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!user) {
+      setSessions([]);
+      setLoading(false);
+      return;
+    }
+
+    const start = new Date();
+    start.setDate(start.getDate() - days);
+    start.setHours(0, 0, 0, 0);
+
+    const q = query(
+      collection(db, "pomodoroSessions"),
+      where("userId", "==", user.uid),
+      where("startedAt", ">=", Timestamp.fromDate(start))
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() })) as PomodoroSession[];
+      list.sort((a, b) => (b.startedAt?.toMillis?.() || 0) - (a.startedAt?.toMillis?.() || 0));
+      setSessions(list);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user, days]);
+
+  return { sessions, loading };
+}
+
 export function usePomodoroMutations() {
   const deleteSession = async (sessionId: string) => {
     await deleteDoc(doc(db, "pomodoroSessions", sessionId));

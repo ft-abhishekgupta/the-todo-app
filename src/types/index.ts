@@ -200,9 +200,19 @@ export interface UserList {
 // Tracker Types
 export type TrackerFrequency = "daily" | "weekly" | "monthly";
 // "manual": user enters values directly.
-// "habits_completed" / "tasks_completed": value auto-derived from existing data.
-export type TrackerSource = "manual" | "habits_completed" | "tasks_completed";
+// "habits_completed" / "tasks_completed" / "pomodoro": value auto-derived from existing data.
+export type TrackerSource = "manual" | "habits_completed" | "tasks_completed" | "pomodoro";
 export type TrackerAggregation = "last" | "sum" | "average";
+export type PomodoroTrackerMetric = "sessions" | "focus_minutes";
+
+export interface TrackerFilters {
+  habitCategories?: HabitCategory[];
+  habitIds?: string[];
+  taskCategories?: TaskCategory[];
+  taskSubtypes?: TaskSubtype[];
+  projectIds?: string[];
+  pomodoroMetric?: PomodoroTrackerMetric;
+}
 
 export interface TrackerField {
   id: string;
@@ -223,6 +233,7 @@ export interface Tracker {
   source: TrackerSource;
   fields: TrackerField[]; // For manual trackers; auto-source uses [{ id: "value", label: "Count" }]
   aggregation?: TrackerAggregation; // How to roll up multiple values in a period (manual). Default "last".
+  filters?: TrackerFilters;
   order: number;
   isActive: boolean;
   createdAt: Timestamp;
