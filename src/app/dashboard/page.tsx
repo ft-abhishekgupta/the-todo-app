@@ -801,7 +801,7 @@ export default function DashboardPage() {
                 <span className="text-xs font-semibold">{completedHabits}/{visibleHabits.length}</span>
                 <div className="flex gap-0.5 flex-1">
                   {(["morning", "all_day", "night"] as const).map((key) => {
-                    const catH = habits.filter((h) => h.category === key);
+                    const catH = visibleHabits.filter((h) => h.category === key);
                     const catD = catH.filter((h) => logs.some((l) => l.habitId === h.id && l.date === todayDate && l.completed)).length;
                     const colors = { morning: "warning", all_day: "primary", night: "secondary" } as const;
                     return <Progress key={key} size="sm" value={catH.length > 0 ? (catD / catH.length) * 100 : 0} color={colors[key]} className="flex-1" />;
