@@ -366,7 +366,6 @@ export default function HabitsPage() {
   const [statsHabit, setStatsHabit] = useState<Habit | null>(null);
 
   const [showOnlyToday, setShowOnlyToday] = useState(false);
-  const [sortMode, setSortMode] = useState<SortMode>("order");
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -383,21 +382,8 @@ export default function HabitsPage() {
   const filteredHabits = useMemo(() => {
     let list = habits;
     if (showOnlyToday) list = list.filter((h) => isHabitVisibleOn(h, today));
-    const sorted = [...list];
-    sorted.sort((a, b) => {
-      switch (sortMode) {
-        case "streak":
-          return (b.streak || 0) - (a.streak || 0);
-        case "name":
-          return a.title.localeCompare(b.title);
-        case "category":
-          return a.category.localeCompare(b.category);
-        default:
-          return (a.order || 0) - (b.order || 0);
-      }
-    });
-    return sorted;
-  }, [habits, showOnlyToday, sortMode, today]);
+    return [...list].sort((a, b) => (a.order || 0) - (b.order || 0));
+  }, [habits, showOnlyToday, today]);
 
   const visibleToday = habits.filter((h) => isHabitVisibleOn(h, today));
   const completedToday = visibleToday.filter((h) =>
@@ -572,25 +558,10 @@ export default function HabitsPage() {
 
           {/* Filters / sort */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 ml-auto">
-              <div className="flex items-center gap-1.5 text-xs text-default-500">
-                <Filter size={12} />
-                <span>Today only</span>
-                <Switch size="sm" isSelected={showOnlyToday} onValueChange={setShowOnlyToday} />
-              </div>
-              <Select
-                size="sm"
-                aria-label="Sort by"
-                className="w-32"
-                variant="bordered"
-                selectedKeys={[sortMode]}
-                onSelectionChange={(k) => setSortMode(Array.from(k)[0] as SortMode)}
-              >
-                <SelectItem key="order">Sort: Manual</SelectItem>
-                <SelectItem key="streak">Sort: Streak</SelectItem>
-                <SelectItem key="name">Sort: Name</SelectItem>
-                <SelectItem key="category">Sort: Category</SelectItem>
-              </Select>
+            <div className="flex items-center gap-1.5 text-xs text-default-500 ml-auto">
+              <Filter size={12} />
+              <span>Today only</span>
+              <Switch size="sm" isSelected={showOnlyToday} onValueChange={setShowOnlyToday} />
             </div>
           </div>
 
