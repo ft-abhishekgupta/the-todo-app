@@ -32,6 +32,7 @@ import {
   Flame,
   Clock,
   Calendar,
+  GripVertical,
   Maximize2,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
@@ -45,6 +46,22 @@ import { useHabits, useHabitLogs } from "@/hooks/use-habits";
 import { useProjects } from "@/hooks/use-projects";
 import { usePomodoroSessionsRange } from "@/hooks/use-pomodoro";
 import { useSchedule } from "@/hooks/use-schedule";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  rectSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   Tracker,
   TrackerEntry,
@@ -329,7 +346,7 @@ export default function TrackerPage() {
   const router = useRouter();
   const { trackers, loading: trackersLoading } = useTrackers();
   const { entries } = useTrackerEntries();
-  const { addTracker, updateTracker, deleteTracker, upsertEntry, deleteEntry } =
+  const { addTracker, updateTracker, deleteTracker, upsertEntry, deleteEntry, reorderTrackers } =
     useTrackerMutations();
   const { tasks } = useTasks();
   const { habits } = useHabits();
@@ -356,6 +373,21 @@ export default function TrackerPage() {
   }, [entries]);
 
   const ctx = { tasks, habits, habitLogs: logs, pomodoroSessions, scheduleEvents };
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = trackers.findIndex((t) => t.id === active.id);
+    const newIndex = trackers.findIndex((t) => t.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    const next = arrayMove(trackers, oldIndex, newIndex);
+    reorderTrackers(next.map((t) => t.id));
+  };
 
   if (authLoading || !user) {
     return (
@@ -410,22 +442,26 @@ export default function TrackerPage() {
             </CardBody>
           </Card>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {trackers.map((t) => (
-              <TrackerCard
-                key={t.id}
-                tracker={t}
-                entries={entriesByTracker[t.id] || []}
-                ctx={ctx}
-                onEdit={() => openEdit(t)}
-                onDelete={() => deleteTracker(t.id)}
-                onOpenDetail={() => openDetail(t)}
-                onSaveEntry={(periodKey, values, notes) =>
-                  upsertEntry(t.id, periodKey, values, notes)
-                }
-              />
-            ))}
-          </div>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={trackers.map((t) => t.id)} strategy={rectSortingStrategy}>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {trackers.map((t) => (
+                  <SortableTrackerCard
+                    key={t.id}
+                    tracker={t}
+                    entries={entriesByTracker[t.id] || []}
+                    ctx={ctx}
+                    onEdit={() => openEdit(t)}
+                    onDelete={() => deleteTracker(t.id)}
+                    onOpenDetail={() => openDetail(t)}
+                    onSaveEntry={(periodKey, values, notes) =>
+                      upsertEntry(t.id, periodKey, values, notes)
+                    }
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
         )}
       </main>
 
@@ -469,6 +505,42 @@ export default function TrackerPage() {
 // Tracker card
 // --------------------------------------------------------------------------
 
+function SortableTrackerCard(props: {
+  tracker: Tracker;
+  entries: TrackerEntry[];
+  ctx: { tasks: Task[]; habits: Habit[]; habitLogs: any[]; pomodoroSessions: PomodoroSession[]; scheduleEvents: ScheduleEvent[] };
+  onEdit: () => void;
+  onDelete: () => void;
+  onOpenDetail: () => void;
+  onSaveEntry: (periodKey: string, values: Record<string, number>, notes?: string) => Promise<void>;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: props.tracker.id,
+  });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  const handle = (
+    <button
+      type="button"
+      className="cursor-grab active:cursor-grabbing text-default-300 hover:text-default-500 touch-none p-0.5 -ml-1"
+      aria-label="Drag to reorder"
+      {...attributes}
+      {...listeners}
+    >
+      <GripVertical size={14} />
+    </button>
+  );
+  return (
+    <div ref={setNodeRef} style={style}>
+      <TrackerCard {...props} dragHandle={handle} />
+    </div>
+  );
+}
+
 function TrackerCard({
   tracker,
   entries,
@@ -477,6 +549,7 @@ function TrackerCard({
   onDelete,
   onOpenDetail,
   onSaveEntry,
+  dragHandle,
 }: {
   tracker: Tracker;
   entries: TrackerEntry[];
@@ -485,6 +558,7 @@ function TrackerCard({
   onDelete: () => void;
   onOpenDetail: () => void;
   onSaveEntry: (periodKey: string, values: Record<string, number>, notes?: string) => Promise<void>;
+  dragHandle?: React.ReactNode;
 }) {
   const today = new Date();
   const currentKey = periodKey(today, tracker.frequency);
@@ -521,11 +595,13 @@ function TrackerCard({
   return (
     <Card shadow="sm" className="h-full">
       <CardHeader className="flex justify-between items-start px-4 pt-3 pb-2">
-        <button
-          className="flex items-start gap-2 min-w-0 text-left flex-1 group/title"
-          onClick={onOpenDetail}
-          aria-label="Open tracker details"
-        >
+        <div className="flex items-start gap-1 min-w-0 flex-1">
+          {dragHandle}
+          <button
+            className="flex items-start gap-2 min-w-0 text-left flex-1 group/title"
+            onClick={onOpenDetail}
+            aria-label="Open tracker details"
+          >
           <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-default-100 shrink-0">
             {tracker.icon ? (
               <span className="text-base">{tracker.icon}</span>
@@ -552,6 +628,7 @@ function TrackerCard({
             </div>
           </div>
         </button>
+        </div>
         <div className="flex items-center gap-0.5 shrink-0">
           <Tooltip content="Open" placement="top">
             <Button isIconOnly size="sm" variant="light" className="w-6 h-6 min-w-6" onPress={onOpenDetail}>
