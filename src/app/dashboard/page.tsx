@@ -810,7 +810,7 @@ function CompletedSidebar({
 }
 
 export default function DashboardPage() {
-  const { user, userProfile, loading } = useAuth();
+  const { user, userProfile, loading, updateProfile } = useAuth();
   const timeFmt = userProfile?.timeFormat || "12h";
   const router = useRouter();
   const { tasks: todayTasks } = useTodayTasks();
@@ -823,8 +823,31 @@ export default function DashboardPage() {
   const { addTask, updateTask, reorderTasks } = useTaskMutations();
   const { toggleHabitLog, updateHabitCount, reorderHabits } = useHabitMutations();
   const [completedOpen, setCompletedOpen] = useState(false);
-  const [focusTaskIds, setFocusTaskIds] = useState<string[]>([]);
-  const [focusHabitId, setFocusHabitId] = useState<string>("");
+  const [focusTaskIds, setFocusTaskIdsState] = useState<string[]>([]);
+  const [focusHabitId, setFocusHabitIdState] = useState<string>("");
+
+  // Hydrate from profile when it loads / changes externally.
+  useEffect(() => {
+    if (!userProfile) return;
+    setFocusTaskIdsState(userProfile.focusTaskIds || []);
+    setFocusHabitIdState(userProfile.focusHabitId || "");
+  }, [userProfile?.id]);
+
+  const setFocusTaskIds: React.Dispatch<React.SetStateAction<string[]>> = (value) => {
+    setFocusTaskIdsState((prev) => {
+      const next = typeof value === "function" ? (value as (p: string[]) => string[])(prev) : value;
+      if (user) updateProfile({ focusTaskIds: next }).catch(() => {});
+      return next;
+    });
+  };
+
+  const setFocusHabitId: React.Dispatch<React.SetStateAction<string>> = (value) => {
+    setFocusHabitIdState((prev) => {
+      const next = typeof value === "function" ? (value as (p: string) => string)(prev) : value;
+      if (user) updateProfile({ focusHabitId: next }).catch(() => {});
+      return next;
+    });
+  };
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const { isOpen: isEditModalOpen, onOpen: onEditModalOpen, onOpenChange: onEditModalOpenChange } = useDisclosure();
 

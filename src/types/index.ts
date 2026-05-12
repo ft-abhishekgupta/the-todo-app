@@ -162,6 +162,8 @@ export interface UserProfile {
   photoURL?: string;
   pomodoroSettings: PomodoroSettings;
   timeFormat?: "12h" | "24h";
+  focusTaskIds?: string[];
+  focusHabitId?: string;
   createdAt: Timestamp;
 }
 
