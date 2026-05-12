@@ -9,6 +9,7 @@ import {
   deleteDoc,
   doc,
   Timestamp,
+  getDoc,
   getDocs,
   writeBatch,
 } from "firebase/firestore";
@@ -19,6 +20,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import toast from "react-hot-toast";
+import { nextRecurrenceDate } from "@/lib/recurrence";
 
 export function useTasks(filters?: {
   status?: TaskStatus;
@@ -124,6 +126,53 @@ export function useTaskMutations() {
       ...cleanUpdates,
       updatedAt: Timestamp.now(),
     });
+
+    // Recurrence: when a recurring task is marked completed, spawn the next
+    // occurrence as a new not_started task. We only act on the *transition*
+    // to completed, not when status is already completed.
+    if (updates.status === "completed") {
+      try {
+        const snap = await getDoc(taskRef);
+        if (!snap.exists()) return;
+        const current = snap.data() as Task;
+        if (!current.recurrence) return;
+        const baseDate = current.scheduledDate?.toDate?.() || new Date();
+        const next = nextRecurrenceDate(current.recurrence, baseDate);
+        if (!next) return;
+        const tasksRef = collection(db, "tasks");
+        const all = await getDocs(query(tasksRef, where("userId", "==", user.uid)));
+        const cleanedSubtasks: Subtask[] = (current.subtasks || []).map((s) => ({
+          ...s,
+          completed: false,
+        }));
+        const cloneRaw: Record<string, unknown> = {
+          title: current.title,
+          description: current.description,
+          status: "not_started" as TaskStatus,
+          priority: current.priority,
+          category: current.category,
+          subtype: current.subtype,
+          projectId: current.projectId,
+          deadline: current.deadline,
+          scheduledDate: Timestamp.fromDate(next),
+          recurrence: current.recurrence,
+          tags: current.tags || [],
+          notes: current.notes,
+          subtasks: cleanedSubtasks,
+          isFocus: current.isFocus,
+          userId: user.uid,
+          order: all.size,
+          createdAt: Timestamp.now(),
+          updatedAt: Timestamp.now(),
+        };
+        const clone = Object.fromEntries(
+          Object.entries(cloneRaw).filter(([, v]) => v !== undefined)
+        );
+        await addDoc(tasksRef, clone);
+      } catch (err) {
+        console.error("Failed to create next recurrence:", err);
+      }
+    }
   };
 
   const deleteTask = async (taskId: string) => {

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Input, Button, Progress } from "@nextui-org/react";
-import { GripVertical, Plus, Star } from "lucide-react";
+import { GripVertical, Plus, Star, Repeat } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -247,6 +247,13 @@ export function SortableTaskItem({
               <span title={task.title} className={`text-sm truncate cursor-text ${task.status === "completed" ? "line-through text-default-400" : ""}`}>
                 {task.title}
               </span>
+              {task.recurrence && (
+                <Repeat
+                  size={10}
+                  className="text-default-400 shrink-0"
+                  aria-label="Recurring task"
+                />
+              )}
               {projectName && <span className="text-[9px] text-default-400 shrink-0">· {projectName}</span>}
             </div>
           )}

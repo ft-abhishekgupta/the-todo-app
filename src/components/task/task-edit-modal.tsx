@@ -25,6 +25,7 @@ import {
   TaskCategory,
   TaskSubtype,
   Subtask,
+  RecurrenceRule,
 } from "@/types";
 import { useTaskMutations } from "@/hooks/use-tasks";
 import { useProjects } from "@/hooks/use-projects";
@@ -108,6 +109,13 @@ export function TaskEditModal({
   const [formSubtasks, setFormSubtasks] = useState<Subtask[]>([]);
   const [newSubtask, setNewSubtask] = useState("");
 
+  // Recurrence
+  const [formRecurrenceType, setFormRecurrenceType] = useState<"none" | "daily" | "weekly" | "monthly">("none");
+  const [formRecurrenceInterval, setFormRecurrenceInterval] = useState<number>(1);
+  const [formRecurrenceDays, setFormRecurrenceDays] = useState<number[]>([]);
+  const [formRecurrenceDayOfMonth, setFormRecurrenceDayOfMonth] = useState<number | "">("");
+  const [formRecurrenceEnd, setFormRecurrenceEnd] = useState("");
+
   // Hydrate form whenever modal opens or task changes
   useEffect(() => {
     if (!isOpen) return;
@@ -124,6 +132,12 @@ export function TaskEditModal({
       setFormNotes(task.notes || "");
       setFormProjectId(task.projectId || "");
       setFormSubtasks(task.subtasks || []);
+      const r = task.recurrence;
+      setFormRecurrenceType(r?.type ?? "none");
+      setFormRecurrenceInterval(r?.interval ?? 1);
+      setFormRecurrenceDays(r?.daysOfWeek ?? []);
+      setFormRecurrenceDayOfMonth(r?.dayOfMonth ?? "");
+      setFormRecurrenceEnd(r?.endDate ? format(r.endDate.toDate(), "yyyy-MM-dd") : "");
     } else {
       setFormTitle("");
       setFormDescription("");
@@ -137,6 +151,11 @@ export function TaskEditModal({
       setFormNotes("");
       setFormProjectId(defaultProjectId || "");
       setFormSubtasks([]);
+      setFormRecurrenceType("none");
+      setFormRecurrenceInterval(1);
+      setFormRecurrenceDays([]);
+      setFormRecurrenceDayOfMonth("");
+      setFormRecurrenceEnd("");
     }
     setNewSubtask("");
   }, [isOpen, task, defaultScheduledDate, defaultProjectId, defaultCategory]);
@@ -150,6 +169,21 @@ export function TaskEditModal({
   const handleSubmit = async () => {
     if (!formTitle.trim()) return;
     const isEdit = !!task;
+
+    let recurrenceValue: RecurrenceRule | undefined | ReturnType<typeof deleteField> = undefined;
+    if (formRecurrenceType === "none") {
+      recurrenceValue = isEdit && task?.recurrence ? (deleteField() as never) : undefined;
+    } else {
+      const rule: RecurrenceRule = { type: formRecurrenceType };
+      if (formRecurrenceInterval > 1) rule.interval = formRecurrenceInterval;
+      if (formRecurrenceType === "weekly" && formRecurrenceDays.length > 0)
+        rule.daysOfWeek = [...formRecurrenceDays].sort((a, b) => a - b);
+      if (formRecurrenceType === "monthly" && formRecurrenceDayOfMonth !== "")
+        rule.dayOfMonth = Number(formRecurrenceDayOfMonth);
+      if (formRecurrenceEnd) rule.endDate = Timestamp.fromDate(parseLocalDate(formRecurrenceEnd));
+      recurrenceValue = rule;
+    }
+
     const taskData = {
       title: formTitle.trim(),
       description: formDescription.trim() || undefined,
@@ -163,6 +197,7 @@ export function TaskEditModal({
       scheduledDate: formScheduledDate
         ? Timestamp.fromDate(parseLocalDate(formScheduledDate))
         : (isEdit ? (deleteField() as never) : undefined),
+      recurrence: recurrenceValue,
       tags: formTags.split(",").map((t) => t.trim()).filter(Boolean),
       notes: formNotes.trim() || undefined,
       projectId: formProjectId || undefined,
@@ -214,6 +249,105 @@ export function TaskEditModal({
               </div>
               <Input label="Tags" placeholder="Comma separated" value={formTags} onValueChange={setFormTags} variant="bordered" size="sm" />
               <Textarea label="Notes" value={formNotes} onValueChange={setFormNotes} variant="bordered" size="sm" minRows={2} />
+
+              {/* Recurrence */}
+              <div className="space-y-2 border border-default-200 rounded-md p-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-medium">Repeat</p>
+                  <Select
+                    aria-label="Recurrence"
+                    size="sm"
+                    variant="bordered"
+                    className="max-w-[160px]"
+                    selectedKeys={[formRecurrenceType]}
+                    onSelectionChange={(k) =>
+                      setFormRecurrenceType(Array.from(k)[0] as typeof formRecurrenceType)
+                    }
+                  >
+                    <SelectItem key="none">Does not repeat</SelectItem>
+                    <SelectItem key="daily">Daily</SelectItem>
+                    <SelectItem key="weekly">Weekly</SelectItem>
+                    <SelectItem key="monthly">Monthly</SelectItem>
+                  </Select>
+                </div>
+                {formRecurrenceType !== "none" && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-default-500">Every</span>
+                      <Input
+                        type="number"
+                        size="sm"
+                        variant="bordered"
+                        className="max-w-[80px]"
+                        min={1}
+                        value={String(formRecurrenceInterval)}
+                        onValueChange={(v) =>
+                          setFormRecurrenceInterval(Math.max(1, parseInt(v) || 1))
+                        }
+                      />
+                      <span className="text-xs text-default-500">
+                        {formRecurrenceType === "daily"
+                          ? "day(s)"
+                          : formRecurrenceType === "weekly"
+                          ? "week(s)"
+                          : "month(s)"}
+                      </span>
+                    </div>
+                    {formRecurrenceType === "weekly" && (
+                      <div className="flex flex-wrap gap-1">
+                        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d, i) => {
+                          const active = formRecurrenceDays.includes(i);
+                          return (
+                            <button
+                              key={i}
+                              type="button"
+                              className={`px-2 py-1 rounded text-[11px] border ${
+                                active
+                                  ? "bg-primary text-white border-primary"
+                                  : "bg-content1 border-default-300"
+                              }`}
+                              onClick={() =>
+                                setFormRecurrenceDays((prev) =>
+                                  prev.includes(i)
+                                    ? prev.filter((x) => x !== i)
+                                    : [...prev, i]
+                                )
+                              }
+                            >
+                              {d}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {formRecurrenceType === "monthly" && (
+                      <Input
+                        type="number"
+                        size="sm"
+                        variant="bordered"
+                        label="Day of month (optional)"
+                        min={1}
+                        max={31}
+                        value={formRecurrenceDayOfMonth === "" ? "" : String(formRecurrenceDayOfMonth)}
+                        onValueChange={(v) =>
+                          setFormRecurrenceDayOfMonth(v === "" ? "" : Math.min(31, Math.max(1, parseInt(v) || 1)))
+                        }
+                      />
+                    )}
+                    <Input
+                      type="date"
+                      size="sm"
+                      variant="bordered"
+                      label="Stop repeating after (optional)"
+                      value={formRecurrenceEnd}
+                      onValueChange={setFormRecurrenceEnd}
+                    />
+                    <p className="text-[10px] text-default-400">
+                      A new task is created automatically when this one is completed.
+                    </p>
+                  </div>
+                )}
+              </div>
 
               {/* Subtasks */}
               <div className="space-y-2">

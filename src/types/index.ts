@@ -16,10 +16,11 @@ export type TaskSubtype = WorkSubtype | PersonalSubtype | GrowthSubtype;
 export type TaskCategory = TaskType;
 
 export type RecurrenceRule = {
-  type: "daily" | "weekly" | "monthly" | "custom";
-  interval?: number;
-  daysOfWeek?: number[]; // 0-6
-  dayOfMonth?: number;
+  type: "daily" | "weekly" | "monthly";
+  interval?: number; // every N units (default 1)
+  daysOfWeek?: number[]; // weekly: 0=Sun..6=Sat (advance to next matching day)
+  dayOfMonth?: number; // monthly: pin to specific day
+  endDate?: Timestamp; // stop recurring after this date (inclusive)
 };
 
 export interface Task {
