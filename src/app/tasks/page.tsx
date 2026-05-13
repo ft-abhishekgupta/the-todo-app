@@ -10,16 +10,9 @@ import {
   Input,
   Button,
   Chip,
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
   useDisclosure,
   Select,
   SelectItem,
-  Textarea,
-  Checkbox,
   Progress,
 } from "@nextui-org/react";
 import { motion } from "framer-motion";
@@ -36,7 +29,8 @@ import {
 import { Navbar } from "@/components/layout/navbar";
 import { useTasks, useTaskMutations } from "@/hooks/use-tasks";
 import { useProjects } from "@/hooks/use-projects";
-import { Task, TaskStatus, TaskPriority, TaskCategory, TaskSubtype, Subtask } from "@/types";
+import { Task, TaskStatus, TaskPriority, TaskCategory, Subtask } from "@/types";
+import { TaskEditModal } from "@/components/task/task-edit-modal";
 import { Timestamp, deleteField } from "firebase/firestore";
 import { format, isToday, isYesterday, isTomorrow, isBefore, startOfDay, addDays } from "date-fns";
 import { parseLocalDate } from "@/lib/time";
@@ -77,26 +71,6 @@ const categoryOptions: { key: TaskCategory; label: string }[] = [
   { key: "personal", label: "Personal" },
   { key: "growth", label: "Growth" },
 ];
-
-const subtypeOptions: Record<TaskCategory, { key: TaskSubtype; label: string }[]> = {
-  work: [
-    { key: "project_task", label: "Project" },
-    { key: "general_task", label: "General" },
-    { key: "chores", label: "Chores" },
-  ],
-  personal: [
-    { key: "general_task", label: "General" },
-    { key: "project_task", label: "Project" },
-    { key: "chores", label: "Chores" },
-    { key: "social", label: "Social" },
-  ],
-  growth: [
-    { key: "professional_learning", label: "Professional Learning" },
-    { key: "personal_learning", label: "Personal Learning" },
-    { key: "improvement", label: "Improvement" },
-  ],
-  habit: [],
-};
 
 type ColumnKey = "past" | "yesterday" | "today" | "tomorrow" | "future";
 
@@ -446,25 +420,12 @@ function TasksPageContent() {
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const [searchQuery, setSearchQuery] = useState("");
   const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [defaultScheduledDate, setDefaultScheduledDate] = useState<Date | undefined>(undefined);
   const [collapsedColumns, setCollapsedColumns] = useState<Set<ColumnKey>>(new Set());
   const [filterCategory, setFilterCategory] = useState<TaskCategory | "all">("all");
   const [filterPriority, setFilterPriority] = useState<TaskPriority | "all">("all");
   const [filterStatus, setFilterStatus] = useState<TaskStatus | "all">("all");
   const [quickAddTitle, setQuickAddTitle] = useState("");
-
-  const [formTitle, setFormTitle] = useState("");
-  const [formDescription, setFormDescription] = useState("");
-  const [formStatus, setFormStatus] = useState<TaskStatus>("not_started");
-  const [formPriority, setFormPriority] = useState<TaskPriority>("medium");
-  const [formCategory, setFormCategory] = useState<TaskCategory>("work");
-  const [formSubtype, setFormSubtype] = useState<TaskSubtype | "">("");
-  const [formDeadline, setFormDeadline] = useState("");
-  const [formScheduledDate, setFormScheduledDate] = useState(format(new Date(), "yyyy-MM-dd"));
-  const [formTags, setFormTags] = useState("");
-  const [formNotes, setFormNotes] = useState("");
-  const [formProjectId, setFormProjectId] = useState("");
-  const [formSubtasks, setFormSubtasks] = useState<Subtask[]>([]);
-  const [newSubtask, setNewSubtask] = useState("");
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -523,74 +484,17 @@ function TasksPageContent() {
 
   const openCreateModal = (column?: ColumnKey) => {
     setEditingTask(null);
-    resetForm();
-    if (column === "today") setFormScheduledDate(format(new Date(), "yyyy-MM-dd"));
-    else if (column === "tomorrow") setFormScheduledDate(format(addDays(new Date(), 1), "yyyy-MM-dd"));
-    else if (column === "yesterday") setFormScheduledDate(format(addDays(new Date(), -1), "yyyy-MM-dd"));
-    else if (column === "future") setFormScheduledDate("");
+    if (column === "today") setDefaultScheduledDate(new Date());
+    else if (column === "tomorrow") setDefaultScheduledDate(addDays(new Date(), 1));
+    else if (column === "yesterday") setDefaultScheduledDate(addDays(new Date(), -1));
+    else setDefaultScheduledDate(undefined);
     onOpen();
   };
 
   const openEditModal = (task: Task) => {
     setEditingTask(task);
-    setFormTitle(task.title);
-    setFormDescription(task.description || "");
-    setFormStatus(task.status);
-    setFormPriority(task.priority);
-    setFormCategory(task.category);
-    setFormSubtype(task.subtype || "");
-    setFormDeadline(task.deadline ? format(task.deadline.toDate(), "yyyy-MM-dd") : "");
-    setFormScheduledDate(task.scheduledDate ? format(task.scheduledDate.toDate(), "yyyy-MM-dd") : "");
-    setFormTags(task.tags.join(", "));
-    setFormNotes(task.notes || "");
-    setFormProjectId(task.projectId || "");
-    setFormSubtasks(task.subtasks || []);
+    setDefaultScheduledDate(undefined);
     onOpen();
-  };
-
-  const resetForm = () => {
-    setFormTitle("");
-    setFormDescription("");
-    setFormStatus("not_started");
-    setFormPriority("medium");
-    setFormCategory("work");
-    setFormSubtype("general_task");
-    setFormDeadline("");
-    setFormScheduledDate(format(new Date(), "yyyy-MM-dd"));
-    setFormTags("");
-    setFormNotes("");
-    setFormProjectId("");
-    setFormSubtasks([]);
-  };
-
-  const handleSubmit = async () => {
-    if (!formTitle.trim()) return;
-    const taskData = {
-      title: formTitle.trim(),
-      description: formDescription.trim() || undefined,
-      status: formStatus,
-      priority: formPriority,
-      category: formCategory,
-      subtype: formSubtype || undefined,
-      deadline: formDeadline ? Timestamp.fromDate(parseLocalDate(formDeadline)) : undefined,
-      scheduledDate: formScheduledDate ? Timestamp.fromDate(parseLocalDate(formScheduledDate)) : undefined,
-      tags: formTags.split(",").map((t) => t.trim()).filter(Boolean),
-      notes: formNotes.trim() || undefined,
-      projectId: formProjectId || undefined,
-      subtasks: formSubtasks,
-    };
-    if (editingTask) {
-      await updateTask(editingTask.id, taskData);
-    } else {
-      await addTask(taskData);
-    }
-    onOpenChange();
-  };
-
-  const addFormSubtask = () => {
-    if (!newSubtask.trim()) return;
-    setFormSubtasks([...formSubtasks, { id: crypto.randomUUID(), title: newSubtask.trim(), completed: false }]);
-    setNewSubtask("");
   };
 
   const toggleColumn = (col: ColumnKey) => {
@@ -867,73 +771,12 @@ function TasksPageContent() {
         </motion.div>
 
         {/* Create/Edit Modal */}
-        <Modal isOpen={isOpen} onOpenChange={onOpenChange} size="2xl" scrollBehavior="inside">
-          <ModalContent>
-            {(onClose) => (
-              <>
-                <ModalHeader>{editingTask ? "Edit Task" : "Create Task"}</ModalHeader>
-                <ModalBody className="space-y-3">
-                  <Input label="Title" placeholder="What needs to be done?" value={formTitle} onValueChange={setFormTitle} isRequired variant="bordered" size="sm" />
-                  <Textarea label="Description" placeholder="Details..." value={formDescription} onValueChange={setFormDescription} variant="bordered" size="sm" minRows={2} />
-                  <div className="grid grid-cols-2 gap-3">
-                    <Select label="Status" variant="bordered" size="sm" selectedKeys={[formStatus]} onSelectionChange={(k) => setFormStatus(Array.from(k)[0] as TaskStatus)}>
-                      {statusOptions.map((s) => <SelectItem key={s.key}>{s.label}</SelectItem>)}
-                    </Select>
-                    <Select label="Priority" variant="bordered" size="sm" selectedKeys={[formPriority]} onSelectionChange={(k) => setFormPriority(Array.from(k)[0] as TaskPriority)}>
-                      {priorityOptions.map((p) => <SelectItem key={p.key}>{p.label}</SelectItem>)}
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Select label="Category" variant="bordered" size="sm" selectedKeys={[formCategory]} onSelectionChange={(k) => { const cat = Array.from(k)[0] as TaskCategory; setFormCategory(cat); setFormSubtype(cat === "work" || cat === "personal" ? "general_task" : ""); }}>
-                      {categoryOptions.map((c) => <SelectItem key={c.key}>{c.label}</SelectItem>)}
-                    </Select>
-                    {subtypeOptions[formCategory]?.length > 0 && (
-                      <Select label="Subcategory" variant="bordered" size="sm" selectedKeys={formSubtype ? [formSubtype] : []} onSelectionChange={(k) => setFormSubtype(Array.from(k)[0] as TaskSubtype)}>
-                        {subtypeOptions[formCategory].map((s) => <SelectItem key={s.key}>{s.label}</SelectItem>)}
-                      </Select>
-                    )}
-                    {projects.length > 0 && (
-                      <Select label="Project" variant="bordered" size="sm" selectedKeys={formProjectId ? [formProjectId] : []} onSelectionChange={(k) => setFormProjectId(Array.from(k)[0] as string)}>
-                        {projects.map((p) => <SelectItem key={p.id}>{p.name}</SelectItem>)}
-                      </Select>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <Input type="date" label="Scheduled" value={formScheduledDate} onValueChange={setFormScheduledDate} variant="bordered" size="sm" />
-                    <Input type="date" label="Deadline" value={formDeadline} onValueChange={setFormDeadline} variant="bordered" size="sm" />
-                  </div>
-                  <Input label="Tags" placeholder="Comma separated" value={formTags} onValueChange={setFormTags} variant="bordered" size="sm" />
-                  <Textarea label="Notes" value={formNotes} onValueChange={setFormNotes} variant="bordered" size="sm" minRows={2} />
-
-                  {/* Subtasks */}
-                  <div className="space-y-2">
-                    <p className="text-xs font-medium">Subtasks</p>
-                    {formSubtasks.map((st, i) => (
-                      <div key={st.id} className="flex items-center gap-2">
-                        <Checkbox size="sm" isSelected={st.completed} onValueChange={(c) => { const u = [...formSubtasks]; u[i] = { ...st, completed: c }; setFormSubtasks(u); }} />
-                        <span className={`text-xs flex-1 ${st.completed ? "line-through text-default-400" : ""}`}>{st.title}</span>
-                        <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => setFormSubtasks(formSubtasks.filter((_, idx) => idx !== i))}><Trash2 size={12} /></Button>
-                      </div>
-                    ))}
-                    <div className="flex gap-2">
-                      <Input size="sm" placeholder="Add subtask..." value={newSubtask} onValueChange={setNewSubtask} onKeyDown={(e) => e.key === "Enter" && addFormSubtask()} variant="bordered" />
-                      <Button size="sm" variant="flat" onPress={addFormSubtask}>Add</Button>
-                    </div>
-                  </div>
-                </ModalBody>
-                <ModalFooter>
-                  {editingTask && (
-                    <Button color="danger" variant="flat" size="sm" className="mr-auto" onPress={() => { deleteTask(editingTask.id); onClose(); }}>
-                      <Trash2 size={14} /> Delete
-                    </Button>
-                  )}
-                  <Button variant="flat" size="sm" onPress={onClose}>Cancel</Button>
-                  <Button color="primary" size="sm" onPress={handleSubmit}>{editingTask ? "Update" : "Create"}</Button>
-                </ModalFooter>
-              </>
-            )}
-          </ModalContent>
-        </Modal>
+        <TaskEditModal
+          isOpen={isOpen}
+          onOpenChange={onOpenChange}
+          task={editingTask}
+          defaultScheduledDate={defaultScheduledDate}
+        />
       </main>
     </div>
   );
