@@ -842,6 +842,7 @@ function CurrentPeriodEditor({
             size="sm"
             type="number"
             inputMode="decimal"
+            aria-label={`${f.label} value`}
             placeholder="0"
             value={draft[f.id] ?? ""}
             onValueChange={(v) => setDraft((d) => ({ ...d, [f.id]: v }))}
@@ -856,6 +857,7 @@ function CurrentPeriodEditor({
       <div className="flex items-center gap-1.5 pt-1">
         <Input
           size="sm"
+          aria-label="Tracker entry notes"
           placeholder="Notes (optional)"
           value={notes}
           onValueChange={setNotes}
@@ -1066,6 +1068,7 @@ function TrackerDetailModal({
                     <span className="text-xs font-medium text-default-500">Period key</span>
                     <Input
                       size="sm"
+                      aria-label="Period key"
                       value={addKey}
                       onValueChange={setAddKey}
                       placeholder={periodKey(new Date(), tracker.frequency)}
@@ -1094,6 +1097,7 @@ function TrackerDetailModal({
                   </div>
                   <Input
                     size="sm"
+                    aria-label="Tracker entry notes"
                     placeholder="Notes (optional)"
                     value={addNotes}
                     onValueChange={setAddNotes}
@@ -1630,6 +1634,7 @@ function TrackerFormModal({
                     <div key={f.id} className="grid grid-cols-12 gap-1.5 items-center">
                       <Input
                         size="sm"
+                        aria-label="Field label"
                         placeholder="Label (e.g. Protein)"
                         value={f.label}
                         onValueChange={(v) => updateField(f.id, { label: v })}
@@ -1637,6 +1642,7 @@ function TrackerFormModal({
                       />
                       <Input
                         size="sm"
+                        aria-label="Field unit"
                         placeholder="Unit (g, kg, ...)"
                         value={f.unit || ""}
                         onValueChange={(v) => updateField(f.id, { unit: v })}
@@ -1645,6 +1651,7 @@ function TrackerFormModal({
                       <Input
                         size="sm"
                         type="number"
+                        aria-label="Field target"
                         placeholder="Target"
                         value={f.target?.toString() || ""}
                         onValueChange={(v) =>

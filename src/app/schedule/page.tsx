@@ -642,6 +642,7 @@ export default function SchedulePage() {
                   type="date"
                   size="sm"
                   variant="bordered"
+                  aria-label="Selected date"
                   value={selectedDate}
                   onValueChange={setSelectedDate}
                   classNames={{ inputWrapper: "border-1 h-8" }}

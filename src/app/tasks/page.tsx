@@ -34,6 +34,7 @@ import { TaskEditModal } from "@/components/task/task-edit-modal";
 import { Timestamp, deleteField } from "firebase/firestore";
 import { format, isToday, isYesterday, isTomorrow, isBefore, startOfDay, addDays } from "date-fns";
 import { parseLocalDate } from "@/lib/time";
+import { groupColumnTasks, type GroupedColumn } from "@/lib/task-grouping";
 import {
   DndContext,
   closestCenter,
@@ -311,6 +312,7 @@ function SortableTask({
             <Input
               size="sm"
               variant="bordered"
+              aria-label="Edit task title"
               value={editTitle}
               onValueChange={setEditTitle}
               onBlur={handleTitleSave}
@@ -379,6 +381,7 @@ function SortableTask({
           <Input
             size="sm"
             variant="bordered"
+            aria-label="New subtask title"
             placeholder="Subtask..."
             value={newSubtaskTitle}
             onValueChange={setNewSubtaskTitle}
@@ -473,6 +476,20 @@ function TasksPageContent() {
     });
     return grouped;
   }, [filteredTasks]);
+
+  const projectsMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    projects.forEach((p) => { m[p.id] = p.name; });
+    return m;
+  }, [projects]);
+
+  const groupedByColumn = useMemo(() => {
+    const result = {} as Record<ColumnKey, GroupedColumn>;
+    (Object.keys(tasksByColumn) as ColumnKey[]).forEach((k) => {
+      result[k] = groupColumnTasks(tasksByColumn[k], projectsMap);
+    });
+    return result;
+  }, [tasksByColumn, projectsMap]);
 
   if (loading || !user) {
     return (
@@ -600,8 +617,8 @@ function TasksPageContent() {
           // Cross-column: update date to target column's date
           updateTask(activeId, { scheduledDate: scheduledDateUpdate(targetCol) as never });
         } else {
-          // Same column: reorder
-          const colTasks = tasksByColumn[sourceCol];
+          // Same column: reorder using the grouped display order
+          const colTasks = groupedByColumn[sourceCol].flatOrder;
           const oldIdx = colTasks.findIndex((t) => t.id === activeId);
           const newIdx = colTasks.findIndex((t) => t.id === overId);
           if (oldIdx !== -1 && newIdx !== -1) {
@@ -622,6 +639,7 @@ function TasksPageContent() {
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-lg font-bold mr-1">Tasks</h1>
             <Input
+              aria-label="Quick add task"
               placeholder="Quick add... (Enter)"
               value={quickAddTitle}
               onValueChange={setQuickAddTitle}
@@ -635,6 +653,7 @@ function TasksPageContent() {
               + Detailed
             </Button>
             <Input
+              aria-label="Search tasks"
               placeholder="Search..."
               value={searchQuery}
               onValueChange={setSearchQuery}
@@ -739,27 +758,70 @@ function TasksPageContent() {
                     {!isCollapsed && (
                       <CardBody className="pt-0 px-1.5 sm:px-2 pb-2 max-h-[calc(100vh-220px)] overflow-y-auto">
                         <DroppableColumn id={col.key}>
-                          <SortableContext items={colTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                            {colTasks.map((task) => (
-                              <SortableTask
-                                key={task.id}
-                                task={task}
-                                onToggle={() => updateTask(task.id, { status: task.status === "completed" ? "not_started" : "completed" })}
-                                onEdit={() => openEditModal(task)}
-                                onDelete={(id) => deleteTask(id)}
-                                onAddSubtask={handleAddSubtaskInline}
-                                onToggleSubtask={handleToggleSubtask}
-                                onDeleteSubtask={handleDeleteSubtask}
-                                onReorderSubtasks={handleReorderSubtasks}
-                                onUpdateTitle={handleUpdateTitle}
-                                onTogglePriority={handleTogglePriority}
-                                onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
-                              />
+                          <SortableContext items={groupedByColumn[col.key].flatOrder.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                            {groupedByColumn[col.key].sections.length === 0 && (
+                              <p className="text-default-400 text-[10px] text-center py-4">Drop tasks here</p>
+                            )}
+                            {groupedByColumn[col.key].sections.map((section) => (
+                              <div key={section.category} className="mb-2">
+                                <div className="flex items-center gap-1.5 px-1 pt-1 pb-0.5">
+                                  <span className={`text-[10px] uppercase font-semibold tracking-wide ${section.color}`}>{section.label}</span>
+                                  <span className="text-[9px] text-default-400">{section.count}</span>
+                                </div>
+                                {section.subSections.map((sub) => (
+                                  <div key={sub.key} className="mb-1">
+                                    <div className="flex items-center px-1.5 pt-0.5">
+                                      <span className="text-[9px] uppercase tracking-wider text-default-500">{sub.label}</span>
+                                    </div>
+                                    {sub.projectSections ? (
+                                      sub.projectSections.map((proj) => (
+                                        <div key={proj.projectId} className="mb-0.5">
+                                          <div className="flex items-center px-2 pt-0.5">
+                                            <span className={`text-[9px] truncate ${proj.projectId === "__none__" ? "text-default-400 italic" : "text-default-600"}`}>
+                                              {proj.name}
+                                            </span>
+                                          </div>
+                                          {proj.tasks.map((task) => (
+                                            <SortableTask
+                                              key={task.id}
+                                              task={task}
+                                              onToggle={() => updateTask(task.id, { status: task.status === "completed" ? "not_started" : "completed" })}
+                                              onEdit={() => openEditModal(task)}
+                                              onDelete={(id) => deleteTask(id)}
+                                              onAddSubtask={handleAddSubtaskInline}
+                                              onToggleSubtask={handleToggleSubtask}
+                                              onDeleteSubtask={handleDeleteSubtask}
+                                              onReorderSubtasks={handleReorderSubtasks}
+                                              onUpdateTitle={handleUpdateTitle}
+                                              onTogglePriority={handleTogglePriority}
+                                              onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
+                                            />
+                                          ))}
+                                        </div>
+                                      ))
+                                    ) : (
+                                      sub.tasks.map((task) => (
+                                        <SortableTask
+                                          key={task.id}
+                                          task={task}
+                                          onToggle={() => updateTask(task.id, { status: task.status === "completed" ? "not_started" : "completed" })}
+                                          onEdit={() => openEditModal(task)}
+                                          onDelete={(id) => deleteTask(id)}
+                                          onAddSubtask={handleAddSubtaskInline}
+                                          onToggleSubtask={handleToggleSubtask}
+                                          onDeleteSubtask={handleDeleteSubtask}
+                                          onReorderSubtasks={handleReorderSubtasks}
+                                          onUpdateTitle={handleUpdateTitle}
+                                          onTogglePriority={handleTogglePriority}
+                                          onUpdateSubtaskTitle={handleUpdateSubtaskTitle}
+                                        />
+                                      ))
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
                             ))}
                           </SortableContext>
-                          {colTasks.length === 0 && (
-                            <p className="text-default-400 text-[10px] text-center py-4">Drop tasks here</p>
-                          )}
                         </DroppableColumn>
                       </CardBody>
                     )}

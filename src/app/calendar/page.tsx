@@ -2,7 +2,7 @@
 
 import { useAuth } from "@/providers/auth-provider";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardBody,
@@ -15,7 +15,9 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { useTasks } from "@/hooks/use-tasks";
 import { useHabitLogs } from "@/hooks/use-habits";
+import { useProjects } from "@/hooks/use-projects";
 import { Task } from "@/types";
+import { groupColumnTasks } from "@/lib/task-grouping";
 import {
   format,
   startOfMonth,
@@ -42,6 +44,11 @@ export default function CalendarPage() {
   const router = useRouter();
   const { tasks } = useTasks();
   const { logs } = useHabitLogs(undefined, 60);
+  const { projects } = useProjects();
+  const projectsMap = useMemo(
+    () => Object.fromEntries(projects.map((p) => [p.id, p.name])),
+    [projects]
+  );
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
@@ -81,6 +88,33 @@ export default function CalendarPage() {
   };
 
   const selectedDateTasks = selectedDate ? getTasksForDate(selectedDate) : [];
+  const groupedSelected = useMemo(
+    () => groupColumnTasks(selectedDateTasks, projectsMap),
+    [selectedDateTasks, projectsMap]
+  );
+
+  const renderTaskRow = (task: Task) => (
+    <div
+      key={task.id}
+      className="p-2 rounded-lg bg-content2 space-y-1"
+    >
+      <div className="flex items-center gap-2">
+        <div className={`w-2 h-2 rounded-full ${priorityColors[task.priority]}`} />
+        <span className="text-sm font-medium">{task.title}</span>
+      </div>
+      <div className="flex gap-1 flex-wrap">
+        <Chip size="sm" variant="flat">
+          {task.status.replace("_", " ")}
+        </Chip>
+        <Chip size="sm" variant="flat" color={
+          task.priority === "high" ? "warning" :
+          task.priority === "medium" ? "primary" : "default"
+        }>
+          {task.priority}
+        </Chip>
+      </div>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -198,7 +232,7 @@ export default function CalendarPage() {
                     : "Select a date"}
                 </span>
               </CardHeader>
-              <CardBody className="space-y-2 pt-0">
+              <CardBody className="space-y-3 pt-0">
                 {!selectedDate ? (
                   <p className="text-default-400 text-sm">
                     Click on a date to see details
@@ -208,26 +242,29 @@ export default function CalendarPage() {
                     No tasks on this date
                   </p>
                 ) : (
-                  selectedDateTasks.map((task) => (
-                    <div
-                      key={task.id}
-                      className="p-3 rounded-lg bg-content2 space-y-1"
-                    >
+                  groupedSelected.sections.map((sec) => (
+                    <div key={sec.category} className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <div className={`w-2 h-2 rounded-full ${priorityColors[task.priority]}`} />
-                        <span className="text-sm font-medium">{task.title}</span>
+                        <h3 className={`text-xs font-semibold uppercase tracking-wide ${sec.color}`}>
+                          {sec.label}
+                        </h3>
+                        <span className="text-[10px] text-default-400">({sec.count})</span>
                       </div>
-                      <div className="flex gap-1">
-                        <Chip size="sm" variant="flat">
-                          {task.status.replace("_", " ")}
-                        </Chip>
-                        <Chip size="sm" variant="flat" color={
-                          task.priority === "high" ? "warning" :
-                          task.priority === "medium" ? "primary" : "default"
-                        }>
-                          {task.priority}
-                        </Chip>
-                      </div>
+                      {sec.subSections.map((sub) => (
+                        <div key={sub.key} className="space-y-1.5 pl-2 border-l border-divider">
+                          {sub.label && (
+                            <p className="text-[11px] font-medium text-default-500">{sub.label}</p>
+                          )}
+                          {sub.projectSections
+                            ? sub.projectSections.map((ps) => (
+                                <div key={ps.projectId} className="space-y-1 pl-2">
+                                  <p className="text-[10px] text-default-400">{ps.name}</p>
+                                  {ps.tasks.map(renderTaskRow)}
+                                </div>
+                              ))
+                            : sub.tasks.map(renderTaskRow)}
+                        </div>
+                      ))}
                     </div>
                   ))
                 )}

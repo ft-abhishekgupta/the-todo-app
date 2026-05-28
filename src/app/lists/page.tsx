@@ -128,6 +128,7 @@ function SortableListCard({
                 <div key={item.id} className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                   <Checkbox
                     size="sm"
+                    aria-label={`Toggle item: ${item.title}`}
                     isSelected={item.completed}
                     onValueChange={() => onToggleItem(item.id)}
                     classNames={{ wrapper: "after:bg-primary" }}
@@ -316,6 +317,7 @@ export default function ListsPage() {
             <Input
               size="sm"
               variant="bordered"
+              aria-label="Search lists"
               placeholder="Search..."
               value={searchQuery}
               onValueChange={setSearchQuery}
@@ -474,6 +476,7 @@ export default function ListsPage() {
                   <div className="flex gap-2">
                     <Input
                       size="sm"
+                      aria-label="New item title"
                       placeholder="Add item..."
                       value={newItemTitle}
                       onValueChange={setNewItemTitle}
@@ -484,6 +487,7 @@ export default function ListsPage() {
                     />
                     <Input
                       size="sm"
+                      aria-label="New item URL"
                       placeholder="URL (optional)"
                       value={newItemUrl}
                       onValueChange={setNewItemUrl}
@@ -563,7 +567,7 @@ function ListItemRow({
   return (
     <div className="rounded-lg bg-content2 hover:bg-content3 group">
       <div className="flex items-center gap-2 p-2">
-        <Checkbox size="sm" isSelected={item.completed} onValueChange={onToggle} />
+        <Checkbox size="sm" aria-label={`Toggle item: ${item.title}`} isSelected={item.completed} onValueChange={onToggle} />
         {isEditing ? (
           <input
             className="text-sm bg-transparent border-b border-primary outline-none flex-1 min-w-0"

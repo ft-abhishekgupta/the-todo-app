@@ -231,6 +231,7 @@ export function SortableTaskItem({
             <Input
               size="sm"
               variant="bordered"
+              aria-label="Edit task title"
               value={editTitle}
               onValueChange={setEditTitle}
               onBlur={handleTitleSave}
@@ -315,6 +316,7 @@ export function SortableTaskItem({
           <Input
             size="sm"
             variant="bordered"
+            aria-label="New subtask title"
             placeholder="Subtask..."
             value={newSubtaskTitle}
             onValueChange={setNewSubtaskTitle}

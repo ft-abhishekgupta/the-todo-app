@@ -278,6 +278,7 @@ export function TaskEditModal({
                         type="number"
                         size="sm"
                         variant="bordered"
+                        aria-label="Recurrence interval"
                         className="max-w-[80px]"
                         min={1}
                         value={String(formRecurrenceInterval)}
@@ -354,13 +355,13 @@ export function TaskEditModal({
                 <p className="text-xs font-medium">Subtasks</p>
                 {formSubtasks.map((st, i) => (
                   <div key={st.id} className="flex items-center gap-2">
-                    <Checkbox size="sm" isSelected={st.completed} onValueChange={(c) => { const u = [...formSubtasks]; u[i] = { ...st, completed: c }; setFormSubtasks(u); }} />
+                    <Checkbox size="sm" aria-label={`Toggle subtask: ${st.title}`} isSelected={st.completed} onValueChange={(c) => { const u = [...formSubtasks]; u[i] = { ...st, completed: c }; setFormSubtasks(u); }} />
                     <span className={`text-xs flex-1 ${st.completed ? "line-through text-default-400" : ""}`}>{st.title}</span>
                     <Button isIconOnly size="sm" variant="light" color="danger" onPress={() => setFormSubtasks(formSubtasks.filter((_, idx) => idx !== i))}><Trash2 size={12} /></Button>
                   </div>
                 ))}
                 <div className="flex gap-2">
-                  <Input size="sm" placeholder="Add subtask..." value={newSubtask} onValueChange={setNewSubtask} onKeyDown={(e) => e.key === "Enter" && addFormSubtask()} variant="bordered" />
+                  <Input size="sm" aria-label="New subtask title" placeholder="Add subtask..." value={newSubtask} onValueChange={setNewSubtask} onKeyDown={(e) => e.key === "Enter" && addFormSubtask()} variant="bordered" />
                   <Button size="sm" variant="flat" onPress={addFormSubtask}>Add</Button>
                 </div>
               </div>

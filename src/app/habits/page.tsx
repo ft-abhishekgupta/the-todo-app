@@ -561,7 +561,7 @@ export default function HabitsPage() {
             <div className="flex items-center gap-1.5 text-xs text-default-500 ml-auto">
               <Filter size={12} />
               <span>Today only</span>
-              <Switch size="sm" isSelected={showOnlyToday} onValueChange={setShowOnlyToday} />
+              <Switch size="sm" aria-label="Show only today's habits" isSelected={showOnlyToday} onValueChange={setShowOnlyToday} />
             </div>
           </div>
 
@@ -825,6 +825,7 @@ export default function HabitsPage() {
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-content2">
                     <Switch
                       size="sm"
+                      aria-label="Counter habit (track quantity)"
                       isSelected={form.type === "counter"}
                       onValueChange={(v) => setForm({ ...form, type: v ? "counter" : "checkbox" })}
                     />

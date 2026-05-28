@@ -89,7 +89,7 @@ export default function PomodoroPage() {
 
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [selectedHabitIds, setSelectedHabitIds] = useState<string[]>([]);
-  const [expandedTasks, setExpandedTasks] = useState<string[]>([]);
+  const [collapsedTasks, setCollapsedTasks] = useState<string[]>([]);
   const [viewSession, setViewSession] = useState<PomodoroSession | null>(null);
   const [customDuration, setCustomDuration] = useState<string>("");
   const [autoStartNext, setAutoStartNext] = useState(false);
@@ -188,7 +188,7 @@ export default function PomodoroPage() {
     setSelectedHabitIds((prev) => prev.includes(id) ? prev.filter((h) => h !== id) : [...prev, id]);
   };
   const toggleExpandTask = (id: string) => {
-    setExpandedTasks((prev) => prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]);
+    setCollapsedTasks((prev) => prev.includes(id) ? prev.filter((t) => t !== id) : [...prev, id]);
   };
 
   const handleToggleTaskComplete = async (task: Task) => {
@@ -305,6 +305,7 @@ export default function PomodoroPage() {
                     <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
                       <Checkbox
                         size="sm"
+                        aria-label={`Toggle task: ${t.title}`}
                         isSelected={t.status === "completed"}
                         onValueChange={() => handleToggleTaskComplete(t)}
                         lineThrough
@@ -312,16 +313,17 @@ export default function PomodoroPage() {
                       <span className={`text-sm font-medium truncate flex-1 ${t.status === "completed" ? "line-through text-default-400" : ""}`}>{t.title}</span>
                       {t.subtasks.length > 0 && (
                         <Button size="sm" isIconOnly variant="light" className="w-5 h-5 min-w-5" onPress={() => toggleExpandTask(t.id)}>
-                          {expandedTasks.includes(t.id) ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                          {collapsedTasks.includes(t.id) ? <ChevronRight size={12} /> : <ChevronDown size={12} />}
                         </Button>
                       )}
                     </div>
-                    {expandedTasks.includes(t.id) && t.subtasks.length > 0 && (
+                    {!collapsedTasks.includes(t.id) && t.subtasks.length > 0 && (
                       <div className="ml-6 mt-1 space-y-0.5">
                         {t.subtasks.map((sub) => (
                           <div key={sub.id} className="flex items-center gap-2 p-1.5 rounded bg-content2">
                             <Checkbox
                               size="sm"
+                              aria-label={`Toggle subtask: ${sub.title}`}
                               isSelected={sub.completed}
                               onValueChange={() => handleToggleSubtask(t, sub.id)}
                               lineThrough
@@ -344,7 +346,7 @@ export default function PomodoroPage() {
               <div className="space-y-1">
                 {habits.filter((h) => selectedHabitIds.includes(h.id)).map((h) => (
                   <div key={h.id} className="flex items-center gap-2 p-2 rounded-lg bg-secondary/5 border border-secondary/20">
-                    <Checkbox size="sm" onValueChange={() => handleToggleHabitComplete(h.id)} />
+                    <Checkbox size="sm" aria-label={`Toggle habit: ${h.title}`} onValueChange={() => handleToggleHabitComplete(h.id)} />
                     <span className="text-sm font-medium truncate">{h.title}</span>
                   </div>
                 ))}
@@ -355,6 +357,7 @@ export default function PomodoroPage() {
           {/* Notes */}
           <div className="w-full">
             <Textarea
+              aria-label="Session notes"
               placeholder={mode === "focus" ? "Session notes..." : "Break notes (optional)..."}
               value={notes}
               onValueChange={setNotes}
@@ -417,6 +420,7 @@ export default function PomodoroPage() {
           {/* Mode tabs */}
           <div className="max-w-sm mx-auto">
             <Tabs
+              aria-label="Pomodoro mode"
               selectedKey={mode}
               onSelectionChange={(key) => setMode(key as PomodoroMode)}
               fullWidth
@@ -461,6 +465,7 @@ export default function PomodoroPage() {
                   <Input
                     size="sm"
                     type="number"
+                    aria-label="Custom focus duration (minutes)"
                     min={1}
                     max={180}
                     step={5}
@@ -488,6 +493,7 @@ export default function PomodoroPage() {
                 </div>
                 <Switch
                   size="sm"
+                  aria-label="Auto-start break after focus"
                   isSelected={autoStartNext}
                   onValueChange={setAutoStartNext}
                 />

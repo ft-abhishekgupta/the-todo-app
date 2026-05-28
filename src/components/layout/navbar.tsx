@@ -129,8 +129,8 @@ export function Navbar() {
         </div>
       </NavbarContent>
 
-      <NavbarContent className="hidden sm:flex basis-1/5 sm:basis-full" justify="end">
-        <NavbarItem className="hidden sm:flex gap-1 items-center">
+      <NavbarContent className="basis-1/5 sm:basis-full" justify="end">
+        <NavbarItem className="flex gap-1 items-center">
           <QuickAddToList iconOnly />
           <Tooltip content="Hide header (fullscreen)" placement="bottom">
             <Button
@@ -145,7 +145,7 @@ export function Navbar() {
           </Tooltip>
           <ThemeSwitch />
         </NavbarItem>
-        <NavbarItem>
+        <NavbarItem className="hidden sm:flex">
           <Dropdown placement="bottom-end">
             <DropdownTrigger>
               <Avatar
@@ -180,22 +180,7 @@ export function Navbar() {
             </DropdownMenu>
           </Dropdown>
         </NavbarItem>
-      </NavbarContent>
-
-      <NavbarContent className="sm:hidden basis-1 pl-4" justify="end">
-        <QuickAddToList iconOnly />
-        <Button isIconOnly size="sm" variant="light" onPress={handleToggleFullscreen} aria-label="Toggle fullscreen">
-          <Maximize2 size={16} />
-        </Button>
-        <ThemeSwitch />
-        <Avatar
-          size="sm"
-          src={user.photoURL || undefined}
-          name={user.displayName?.charAt(0) || "U"}
-          className="cursor-pointer"
-          onClick={() => router.push("/settings")}
-        />
-        <NavbarMenuToggle />
+        <NavbarMenuToggle className="lg:hidden" />
       </NavbarContent>
 
       <NavbarMenu>

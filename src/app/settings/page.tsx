@@ -45,7 +45,7 @@ import {
 import { db } from "@/config/firebase";
 import toast from "react-hot-toast";
 
-const COLLECTIONS = ["tasks", "habits", "habitLogs", "pomodoroSessions", "projects", "scheduleEvents", "lists"] as const;
+const COLLECTIONS = ["tasks", "habits", "habitLogs", "pomodoroSessions", "projects", "scheduleEvents", "lists", "trackers", "trackerEntries"] as const;
 
 export default function SettingsPage() {
   const { user, userProfile, loading, updateProfile } = useAuth();

@@ -61,6 +61,7 @@ export function QuickAddToList({ iconOnly = false }: { iconOnly?: boolean } = {}
               <Input
                 size="sm"
                 variant="bordered"
+                aria-label="Item to add"
                 placeholder="Item to add..."
                 value={itemTitle}
                 onValueChange={setItemTitle}

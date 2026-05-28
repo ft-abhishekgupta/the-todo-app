@@ -361,6 +361,7 @@ export default function ProjectsPage() {
                     <Select
                       size="sm"
                       variant="bordered"
+                      aria-label="Project status"
                       className="w-32"
                       selectedKeys={[(detailProject.status || "active")]}
                       onSelectionChange={(k) => handleStatusChange(detailProject.id, Array.from(k)[0] as ProjectStatus)}
@@ -382,6 +383,7 @@ export default function ProjectsPage() {
                       <div className="flex flex-col sm:flex-row gap-2">
                         <Input
                           size="sm"
+                          aria-label="Add task to project"
                           placeholder="Add a task to this project..."
                           value={quickTaskTitle}
                           onChange={(e) => setQuickTaskTitle(e.target.value)}
@@ -515,6 +517,7 @@ export default function ProjectsPage() {
                         <div className="space-y-2">
                           <Textarea
                             variant="bordered"
+                            aria-label="Project notes"
                             value={notesValue}
                             onValueChange={setNotesValue}
                             minRows={6}
@@ -575,14 +578,67 @@ export default function ProjectsPage() {
                     </CardBody>
                   </Card>
 
-                  <Button color="danger" variant="flat" className="w-full" startContent={<Trash2 size={14} />} onPress={() => { deleteProject(detailProject.id); setDetailProjectId(null); }}>
-                    Archive Project
+                  <Button color="danger" variant="flat" className="w-full" startContent={<Trash2 size={14} />} onPress={() => {
+                    const taskCount = detailTasks.length;
+                    const msg = taskCount > 0
+                      ? `Delete "${detailProject.name}" and its ${taskCount} task${taskCount === 1 ? "" : "s"}? This cannot be undone.`
+                      : `Delete "${detailProject.name}"? This cannot be undone.`;
+                    if (window.confirm(msg)) {
+                      deleteProject(detailProject.id);
+                      setDetailProjectId(null);
+                    }
+                  }}>
+                    Delete Project
                   </Button>
                 </div>
               </Tab>
             </Tabs>
           </motion.div>
         </main>
+
+        <Modal isOpen={isEditOpen} onOpenChange={onEditOpenChange} size="lg">
+          <ModalContent>
+            {(onClose) => (
+              <>
+                <ModalHeader>Edit Project</ModalHeader>
+                <ModalBody className="space-y-3">
+                  <Input label="Project Name" value={formName} onValueChange={setFormName} isRequired variant="bordered" size="sm" />
+                  <Textarea label="Description" value={formDescription} onValueChange={setFormDescription} variant="bordered" size="sm" minRows={2} />
+                  <div className="grid grid-cols-2 gap-3">
+                    <Select label="Type" variant="bordered" size="sm" selectedKeys={[formType]} onSelectionChange={(k) => setFormType(Array.from(k)[0] as ProjectType)}>
+                      {projectTypeOptions.map((t) => <SelectItem key={t.key}>{t.label}</SelectItem>)}
+                    </Select>
+                    <Input type="date" label="Deadline" value={formDeadline} onValueChange={setFormDeadline} variant="bordered" size="sm" />
+                  </div>
+                  <Textarea label="Notes" value={formNotes} onValueChange={setFormNotes} variant="bordered" size="sm" minRows={3} />
+                  <div>
+                    <p className="text-xs font-medium mb-2">Color</p>
+                    <div className="flex gap-2 flex-wrap">
+                      {projectColors.map((color) => (
+                        <div
+                          key={color}
+                          className={`w-7 h-7 rounded-full cursor-pointer transition-transform ${formColor === color ? "scale-125 ring-2 ring-offset-2 ring-primary" : ""}`}
+                          style={{ backgroundColor: color }}
+                          onClick={() => setFormColor(color)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </ModalBody>
+                <ModalFooter>
+                  <Button variant="flat" size="sm" onPress={onClose}>Cancel</Button>
+                  <Button color="primary" size="sm" onPress={handleUpdateProject}>Save</Button>
+                </ModalFooter>
+              </>
+            )}
+          </ModalContent>
+        </Modal>
+
+        <TaskEditModal
+          isOpen={isTaskEditOpen}
+          onOpenChange={onTaskEditOpenChange}
+          task={editingTask}
+        />
       </div>
     );
   }

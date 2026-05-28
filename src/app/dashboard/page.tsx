@@ -40,6 +40,8 @@ import {
   Check,
   Brain,
   Coffee,
+  ChevronsDownUp,
+  ChevronsUpDown,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { SortableTaskItem } from "@/components/task/sortable-task-item";
@@ -210,6 +212,7 @@ function TaskSection({
   selectionMode = false,
   selectedTaskIds,
   onToggleSelect,
+  expandSignal,
 }: {
   type: (typeof TASK_TYPES)[number];
   tasks: Task[];
@@ -230,6 +233,7 @@ function TaskSection({
   selectionMode?: boolean;
   selectedTaskIds?: ReadonlySet<string>;
   onToggleSelect?: (taskId: string) => void;
+  expandSignal?: { token: number; action: "expand" | "collapse" };
 }){
   const [addingForKey, setAddingForKey] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -255,6 +259,28 @@ function TaskSection({
   const activeTasks = tasks.filter((t) => t.status !== "completed");
   const { ref: bodyRef, maxH } = useViewportConstrainedMaxHeight();
 
+  // Respond to global expand/collapse-all signal from the dashboard.
+  useEffect(() => {
+    if (!expandSignal) return;
+    if (expandSignal.action === "collapse") {
+      setCollapsedSubs(new Set<string>([...type.subtypes.map((s) => s.key), "__other__"]));
+      setExpandedProjects(new Set<string>());
+    } else {
+      setCollapsedSubs(new Set<string>());
+      // Expand every project group across all subtypes that have project_task tasks.
+      const projectKeys = new Set<string>();
+      for (const sub of type.subtypes) {
+        if (sub.key !== "project_task") continue;
+        const subTasks = activeTasks.filter((t) => t.subtype === sub.key);
+        const ids = new Set<string>();
+        subTasks.forEach((t) => ids.add(t.projectId || "__none__"));
+        ids.forEach((pid) => projectKeys.add(`${sub.key}:${pid}`));
+      }
+      setExpandedProjects(projectKeys);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandSignal?.token]);
+
   const handleAddFor = (subtype?: TaskSubtype, projectId?: string) => {
     if (!newTitle.trim()) return;
     onQuickAdd(newTitle.trim(), type.key, subtype, projectId);
@@ -276,6 +302,7 @@ function TaskSection({
             <Input
               size="sm"
               variant="bordered"
+              aria-label="New task title"
               placeholder="Task title..."
               value={newTitle}
               onValueChange={setNewTitle}
@@ -855,6 +882,17 @@ export default function DashboardPage() {
   const [pomodoroSelectionMode, setPomodoroSelectionMode] = useState(false);
   const [selectedPomoTaskIds, setSelectedPomoTaskIds] = useState<Set<string>>(new Set());
   const [selectedPomoHabitIds, setSelectedPomoHabitIds] = useState<Set<string>>(new Set());
+
+  // Broadcasts an expand/collapse-all event to every TaskSection.
+  const [expandSignal, setExpandSignal] = useState<{ token: number; action: "expand" | "collapse" }>({ token: 0, action: "collapse" });
+  const [allExpanded, setAllExpanded] = useState(false);
+  const handleToggleExpandAll = useCallback(() => {
+    setAllExpanded((prev) => {
+      const next = !prev;
+      setExpandSignal((s) => ({ token: s.token + 1, action: next ? "expand" : "collapse" }));
+      return next;
+    });
+  }, []);
   const togglePomoTask = useCallback((id: string) => {
     setSelectedPomoTaskIds((prev) => {
       const next = new Set(prev);
@@ -1103,14 +1141,33 @@ export default function DashboardPage() {
               <p className="text-[10px] uppercase text-default-400 font-semibold mb-1.5">Focus Tasks</p>
               <div className="space-y-1">
                 {focusTasks.map((t) => (
-                  <div key={t.id} className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
-                    <Checkbox
-                      size="sm"
-                      isSelected={t.status === "completed"}
-                      onValueChange={() => updateTask(t.id, { status: t.status === "completed" ? "not_started" : "completed" })}
-                      lineThrough
-                    />
-                    <span title={t.title} className={`text-sm font-medium truncate flex-1 ${t.status === "completed" ? "line-through text-default-400" : ""}`}>{t.title}</span>
+                  <div key={t.id}>
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-primary/5 border border-primary/20">
+                      <Checkbox
+                        size="sm"
+                        aria-label={`Toggle focus task: ${t.title}`}
+                        isSelected={t.status === "completed"}
+                        onValueChange={() => updateTask(t.id, { status: t.status === "completed" ? "not_started" : "completed" })}
+                        lineThrough
+                      />
+                      <span title={t.title} className={`text-sm font-medium truncate flex-1 ${t.status === "completed" ? "line-through text-default-400" : ""}`}>{t.title}</span>
+                    </div>
+                    {t.subtasks && t.subtasks.length > 0 && (
+                      <div className="ml-6 mt-1 space-y-0.5">
+                        {t.subtasks.map((sub) => (
+                          <div key={sub.id} className="flex items-center gap-2 p-1.5 rounded bg-content2">
+                            <Checkbox
+                              size="sm"
+                              aria-label={`Toggle subtask: ${sub.title}`}
+                              isSelected={sub.completed}
+                              onValueChange={() => handleToggleSubtask(t.id, sub.id)}
+                              lineThrough
+                            />
+                            <span className={`text-xs truncate ${sub.completed ? "line-through text-default-400" : ""}`}>{sub.title}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1126,7 +1183,7 @@ export default function DashboardPage() {
                   const done = log?.completed || false;
                   return (
                     <div key={h.id} className="flex items-center gap-2 p-2 rounded-lg bg-secondary/5 border border-secondary/20">
-                      <Checkbox size="sm" isSelected={done} onValueChange={() => toggleHabitLog(h.id, todayDate, !done)} lineThrough />
+                      <Checkbox size="sm" aria-label={`Toggle focus habit: ${h.title}`} isSelected={done} onValueChange={() => toggleHabitLog(h.id, todayDate, !done)} lineThrough />
                       <span title={h.title} className={`text-sm font-medium truncate ${done ? "line-through text-default-400" : ""}`}>{h.title}</span>
                     </div>
                   );
@@ -1137,6 +1194,7 @@ export default function DashboardPage() {
 
           <div className="w-full">
             <Textarea
+              aria-label="Session notes"
               placeholder="Session notes..."
               value={pomoTimer.notes}
               onValueChange={pomoTimer.setNotes}
@@ -1166,7 +1224,19 @@ export default function DashboardPage() {
                 {activeTasks.length} active · {completedTasks.length} done · {completedHabits}/{visibleHabits.length} habits
               </p>
             </div>
-            <LiveClock fmt={timeFmt} />
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="light"
+                isIconOnly
+                onPress={handleToggleExpandAll}
+                aria-label={allExpanded ? "Collapse all" : "Expand all"}
+                title={allExpanded ? "Collapse all" : "Expand all"}
+              >
+                {allExpanded ? <ChevronsDownUp size={16} /> : <ChevronsUpDown size={16} />}
+              </Button>
+              <LiveClock fmt={timeFmt} />
+            </div>
           </div>
 
           {/* Stats */}
@@ -1581,6 +1651,7 @@ export default function DashboardPage() {
                 selectionMode={pomodoroSelectionMode}
                 selectedTaskIds={selectedPomoTaskIds}
                 onToggleSelect={togglePomoTask}
+                expandSignal={expandSignal}
               />
             ))}
             <HabitSection
