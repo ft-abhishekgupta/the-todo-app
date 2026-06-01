@@ -51,7 +51,7 @@ import { useHabits, useHabitLogs, useHabitMutations } from "@/hooks/use-habits";
 import { usePomodoroSessions, usePomodoroTimer } from "@/hooks/use-pomodoro";
 import { useSchedule } from "@/hooks/use-schedule";
 import { useProjects } from "@/hooks/use-projects";
-import { format } from "date-fns";
+import { format, addDays, startOfDay } from "date-fns";
 import { Timestamp } from "firebase/firestore";
 import { dateFnsTimeFormat, formatTimeStr } from "@/lib/time";
 import { isHabitVisibleOn } from "@/lib/habit-visibility";
@@ -212,6 +212,7 @@ function TaskSection({
   selectionMode = false,
   selectedTaskIds,
   onToggleSelect,
+  onMoveToNextDay,
 }: {
   type: (typeof TASK_TYPES)[number];
   tasks: Task[];
@@ -232,6 +233,7 @@ function TaskSection({
   selectionMode?: boolean;
   selectedTaskIds?: ReadonlySet<string>;
   onToggleSelect?: (taskId: string) => void;
+  onMoveToNextDay?: (task: Task) => void;
 }){
   const [addingForKey, setAddingForKey] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
@@ -343,6 +345,7 @@ function TaskSection({
       selectionMode={selectionMode}
       isSelected={selectedTaskIds?.has(task.id) || false}
       onToggleSelect={onToggleSelect}
+      onMoveToNextDay={onMoveToNextDay}
     />
   );
 
@@ -1087,6 +1090,12 @@ export default function DashboardPage() {
     onEditModalOpen();
   };
 
+  const handleMoveToNextDay = (task: Task) => {
+    const base = task.scheduledDate ? task.scheduledDate.toDate() : new Date();
+    const next = startOfDay(addDays(base, 1));
+    updateTask(task.id, { scheduledDate: Timestamp.fromDate(next) });
+  };
+
   const handleUpdateSubtaskTitle = (taskId: string, subtaskId: string, title: string) => {
     const task = todayTasks.find((t) => t.id === taskId);
     if (!task) return;
@@ -1667,6 +1676,7 @@ export default function DashboardPage() {
                 selectionMode={pomodoroSelectionMode}
                 selectedTaskIds={selectedPomoTaskIds}
                 onToggleSelect={togglePomoTask}
+                onMoveToNextDay={handleMoveToNextDay}
               />
             ))}
             <HabitSection

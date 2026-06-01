@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Input, Button, Progress } from "@nextui-org/react";
-import { GripVertical, Plus, Star, Repeat } from "lucide-react";
+import { GripVertical, Plus, Star, Repeat, ArrowRightToLine } from "lucide-react";
 import {
   DndContext,
   closestCenter,
@@ -95,6 +95,7 @@ export function SortableTaskItem({
   onTogglePriority,
   onOpenEditModal,
   onUpdateSubtaskTitle,
+  onMoveToNextDay,
   isFocused = false,
   projectName,
   selectionMode = false,
@@ -111,6 +112,7 @@ export function SortableTaskItem({
   onTogglePriority: (taskId: string, currentPriority: TaskPriority) => void;
   onOpenEditModal: (task: Task) => void;
   onUpdateSubtaskTitle: (taskId: string, subtaskId: string, title: string) => void;
+  onMoveToNextDay?: (task: Task) => void;
   isFocused?: boolean;
   projectName?: string;
   selectionMode?: boolean;
@@ -286,6 +288,19 @@ export function SortableTaskItem({
               title={isFocused ? "Remove from focus" : "Set as focus"}
             >
               <Star size={10} className={isFocused ? "text-primary fill-primary" : ""} />
+            </Button>
+          )}
+          {onMoveToNextDay && task.status !== "completed" && (
+            <Button
+              isIconOnly
+              size="sm"
+              variant="light"
+              className="opacity-0 group-hover:opacity-100 w-5 h-5 min-w-5"
+              onPress={() => onMoveToNextDay(task)}
+              aria-label="Move to next day"
+              title="Move to next day"
+            >
+              <ArrowRightToLine size={10} />
             </Button>
           )}
           <div
