@@ -102,6 +102,67 @@ const WEEKDAY_FULL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 type SortMode = "order" | "streak" | "name" | "category";
 
+function HabitActivityRow({ habit, days }: { habit: Habit; days: number }) {
+  const { logs } = useHabitLogs(habit.id, days);
+  const today = new Date();
+  const dayList = eachDayOfInterval({ start: subDays(today, days - 1), end: today });
+  const completedDates = new Set(logs.filter((l) => l.completed).map((l) => l.date));
+  const completionsInWindow = dayList.filter((d) => completedDates.has(format(d, "yyyy-MM-dd"))).length;
+  const rate = dayList.length > 0 ? Math.round((completionsInWindow / dayList.length) * 100) : 0;
+
+  return (
+    <div className="flex items-center gap-3 flex-wrap md:flex-nowrap">
+      <div className="flex items-center gap-1.5 w-36 shrink-0 min-w-0">
+        {habit.icon && <span className="text-xs shrink-0">{habit.icon}</span>}
+        <span title={habit.title} className="text-[11px] text-default-600 truncate">{habit.title}</span>
+      </div>
+      <div className="flex gap-[2px] flex-wrap flex-1 min-w-0">
+        {dayList.map((day) => {
+          const dateStr = format(day, "yyyy-MM-dd");
+          const done = completedDates.has(dateStr);
+          return (
+            <div
+              key={dateStr}
+              className={`w-2 h-2 rounded-[2px] ${done ? "bg-success" : "bg-default-100"}`}
+              title={`${dateStr}${done ? " ✓" : ""}`}
+            />
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-3 shrink-0 text-[10px] text-default-500">
+        <span className="flex items-center gap-0.5 text-warning" title="Current streak">
+          <Flame size={10} /> {habit.streak || 0}
+        </span>
+        <span className="flex items-center gap-0.5 text-success" title="Longest streak">
+          <TrendingUp size={10} /> {habit.longestStreak || 0}
+        </span>
+        <span title={`Completed ${completionsInWindow} of ${days} days`}>
+          {completionsInWindow}/{days}
+        </span>
+        <span className="font-medium text-default-600 w-9 text-right" title="Completion rate">
+          {rate}%
+        </span>
+      </div>
+    </div>
+  );
+}
+
+function HabitsActivityCard({ habits, days }: { habits: Habit[]; days: number }) {
+  return (
+    <Card shadow="sm">
+      <CardHeader className="px-4 py-2 flex justify-between">
+        <span className="text-xs font-semibold">{days}-Day Activity</span>
+        <span className="text-[10px] text-default-400">Streaks, completions and rate over last {days} days</span>
+      </CardHeader>
+      <CardBody className="pt-0 px-4 pb-3 space-y-2">
+        {habits.map((habit) => (
+          <HabitActivityRow key={habit.id} habit={habit} days={days} />
+        ))}
+      </CardBody>
+    </Card>
+  );
+}
+
 function MiniHeatmap({ habitId, weeks = 4 }: { habitId: string; weeks?: number }) {
   const days = weeks * 7;
   const { logs } = useHabitLogs(habitId, days);
@@ -632,20 +693,7 @@ export default function HabitsPage() {
 
           {/* Heatmaps */}
           {habits.length > 0 && (
-            <Card shadow="sm">
-              <CardHeader className="px-4 py-2 flex justify-between">
-                <span className="text-xs font-semibold">28-Day Activity</span>
-                <span className="text-[10px] text-default-400">Click a habit row above for full stats</span>
-              </CardHeader>
-              <CardBody className="pt-0 px-4 pb-3 space-y-2">
-                {habits.slice(0, 8).map((habit) => (
-                  <div key={habit.id} className="flex items-center gap-3">
-                    <span className="text-[10px] text-default-500 w-24 truncate">{habit.title}</span>
-                    <MiniHeatmap habitId={habit.id} weeks={4} />
-                  </div>
-                ))}
-              </CardBody>
-            </Card>
+            <HabitsActivityCard habits={habits} days={100} />
           )}
         </motion.div>
 

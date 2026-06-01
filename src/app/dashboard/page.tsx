@@ -502,6 +502,7 @@ function HabitSection({
   selectionMode = false,
   selectedHabitIds,
   onToggleSelectHabit,
+  expandSignal,
 }: {
   habits: Habit[];
   totalVisible: number;
@@ -517,6 +518,7 @@ function HabitSection({
   selectionMode?: boolean;
   selectedHabitIds?: ReadonlySet<string>;
   onToggleSelectHabit?: (habitId: string) => void;
+  expandSignal?: { token: number; action: "expand" | "collapse" };
 }) {
   const completedCount = completedCountProp;
 
@@ -543,6 +545,16 @@ function HabitSection({
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
   });
+
+  useEffect(() => {
+    if (!expandSignal) return;
+    if (expandSignal.action === "collapse") {
+      setCollapsedCats(new Set<string>(HABIT_CATEGORIES.map((c) => c.key)));
+    } else {
+      setCollapsedCats(new Set<string>());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandSignal?.token]);
 
   return (
     <Card shadow="sm" className="h-fit">
@@ -1262,14 +1274,13 @@ export default function DashboardPage() {
               <CardBody className="p-2 flex flex-row items-center gap-2">
                 <Flame size={12} className="text-success shrink-0" />
                 <span className="text-xs font-semibold">{completedHabits}/{visibleHabits.length}</span>
-                <div className="flex gap-0.5 flex-1">
-                  {(["morning", "all_day", "night"] as const).map((key) => {
-                    const catH = visibleHabits.filter((h) => h.category === key);
-                    const catD = catH.filter((h) => logs.some((l) => l.habitId === h.id && l.date === todayDate && l.completed)).length;
-                    const colors = { morning: "warning", all_day: "primary", night: "secondary" } as const;
-                    return <Progress key={key} size="sm" value={catH.length > 0 ? (catD / catH.length) * 100 : 0} color={colors[key]} className="flex-1" />;
-                  })}
-                </div>
+                <Progress
+                  size="sm"
+                  value={visibleHabits.length > 0 ? (completedHabits / visibleHabits.length) * 100 : 0}
+                  color="success"
+                  className="flex-1"
+                  aria-label="Habits progress today"
+                />
               </CardBody>
             </Card>
 
@@ -1669,6 +1680,7 @@ export default function DashboardPage() {
               selectionMode={pomodoroSelectionMode}
               selectedHabitIds={selectedPomoHabitIds}
               onToggleSelectHabit={togglePomoHabit}
+              expandSignal={expandSignal}
             />
           </div>
 
