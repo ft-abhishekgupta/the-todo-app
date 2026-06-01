@@ -212,7 +212,6 @@ function TaskSection({
   selectionMode = false,
   selectedTaskIds,
   onToggleSelect,
-  expandSignal,
 }: {
   type: (typeof TASK_TYPES)[number];
   tasks: Task[];
@@ -233,23 +232,19 @@ function TaskSection({
   selectionMode?: boolean;
   selectedTaskIds?: ReadonlySet<string>;
   onToggleSelect?: (taskId: string) => void;
-  expandSignal?: { token: number; action: "expand" | "collapse" };
 }){
   const [addingForKey, setAddingForKey] = useState<string | null>(null);
   const [newTitle, setNewTitle] = useState("");
-  // All subtype groups (and the catch-all "__other__") collapsed by default.
-  const [collapsedSubs, setCollapsedSubs] = useState<Set<string>>(
-    () => new Set<string>([...type.subtypes.map((s) => s.key), "__other__"])
-  );
+  // All subtype groups expanded by default; user can collapse individually.
+  const [collapsedSubs, setCollapsedSubs] = useState<Set<string>>(() => new Set<string>());
   const toggleSub = (key: string) => setCollapsedSubs((prev) => {
     const next = new Set(prev);
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
   });
-  // Project subgroups use opt-in expansion so they're collapsed by default
-  // even though their keys are only known after first render.
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(() => new Set<string>());
-  const toggleProject = (key: string) => setExpandedProjects((prev) => {
+  // Project subgroups expanded by default; track explicit collapses.
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => new Set<string>());
+  const toggleProject = (key: string) => setCollapsedProjects((prev) => {
     const next = new Set(prev);
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
@@ -259,27 +254,34 @@ function TaskSection({
   const activeTasks = tasks.filter((t) => t.status !== "completed");
   const { ref: bodyRef, maxH } = useViewportConstrainedMaxHeight();
 
-  // Respond to global expand/collapse-all signal from the dashboard.
-  useEffect(() => {
-    if (!expandSignal) return;
-    if (expandSignal.action === "collapse") {
-      setCollapsedSubs(new Set<string>([...type.subtypes.map((s) => s.key), "__other__"]));
-      setExpandedProjects(new Set<string>());
-    } else {
-      setCollapsedSubs(new Set<string>());
-      // Expand every project group across all subtypes that have project_task tasks.
-      const projectKeys = new Set<string>();
-      for (const sub of type.subtypes) {
-        if (sub.key !== "project_task") continue;
-        const subTasks = activeTasks.filter((t) => t.subtype === sub.key);
-        const ids = new Set<string>();
-        subTasks.forEach((t) => ids.add(t.projectId || "__none__"));
-        ids.forEach((pid) => projectKeys.add(`${sub.key}:${pid}`));
-      }
-      setExpandedProjects(projectKeys);
+  // Compute all project subgroup keys currently present in this section so the
+  // per-section toggle can collapse/expand them in sync with the subtype rows.
+  const allProjectKeys = useMemo(() => {
+    const keys = new Set<string>();
+    for (const sub of type.subtypes) {
+      if (sub.key !== "project_task") continue;
+      const subTasks = activeTasks.filter((t) => t.subtype === sub.key);
+      const ids = new Set<string>();
+      subTasks.forEach((t) => ids.add(t.projectId || "__none__"));
+      ids.forEach((pid) => keys.add(`${sub.key}:${pid}`));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expandSignal?.token]);
+    return keys;
+  }, [type.subtypes, activeTasks]);
+
+  const allCollapsed =
+    collapsedSubs.size >= type.subtypes.length + 1 /* +1 for __other__ */ &&
+    [...type.subtypes.map((s) => s.key), "__other__"].every((k) => collapsedSubs.has(k)) &&
+    [...allProjectKeys].every((k) => collapsedProjects.has(k));
+
+  const handleSectionToggleAll = () => {
+    if (allCollapsed) {
+      setCollapsedSubs(new Set<string>());
+      setCollapsedProjects(new Set<string>());
+    } else {
+      setCollapsedSubs(new Set<string>([...type.subtypes.map((s) => s.key), "__other__"]));
+      setCollapsedProjects(new Set<string>(allProjectKeys));
+    }
+  };
 
   const handleAddFor = (subtype?: TaskSubtype, projectId?: string) => {
     if (!newTitle.trim()) return;
@@ -352,11 +354,25 @@ function TaskSection({
           <span className="font-semibold text-sm">{type.label}</span>
           <Chip size="sm" variant="flat" className="h-5">{activeTasks.length}</Chip>
         </div>
-        {type.subtypes.length === 0 && (
-          <Button size="sm" isIconOnly variant="light" onPress={() => startAdding("__root__")}>
-            <Plus size={14} />
-          </Button>
-        )}
+        <div className="flex items-center gap-1">
+          {type.subtypes.length > 0 && (
+            <Button
+              size="sm"
+              isIconOnly
+              variant="light"
+              onPress={handleSectionToggleAll}
+              aria-label={allCollapsed ? `Expand all ${type.label}` : `Collapse all ${type.label}`}
+              title={allCollapsed ? "Expand all" : "Collapse all"}
+            >
+              {allCollapsed ? <ChevronsUpDown size={14} /> : <ChevronsDownUp size={14} />}
+            </Button>
+          )}
+          {type.subtypes.length === 0 && (
+            <Button size="sm" isIconOnly variant="light" onPress={() => startAdding("__root__")}>
+              <Plus size={14} />
+            </Button>
+          )}
+        </div>
       </CardHeader>
 
       <CardBody className="pt-0 px-2 pb-2">
@@ -423,7 +439,7 @@ function TaskSection({
                         return entries.map(([projectId, projectTasks]) => {
                           const projectName = projectId === "__none__" ? "(No project)" : (projectsMap[projectId] || "Unknown");
                           const pkey = `${sub.key}:${projectId}`;
-                          const pExpanded = expandedProjects.has(pkey);
+                          const pExpanded = !collapsedProjects.has(pkey);
                           const addKey = `${sub.key}:${projectId}:add`;
                           const realProjectId = projectId === "__none__" ? undefined : projectId;
                           return (
@@ -502,7 +518,6 @@ function HabitSection({
   selectionMode = false,
   selectedHabitIds,
   onToggleSelectHabit,
-  expandSignal,
 }: {
   habits: Habit[];
   totalVisible: number;
@@ -518,7 +533,6 @@ function HabitSection({
   selectionMode?: boolean;
   selectedHabitIds?: ReadonlySet<string>;
   onToggleSelectHabit?: (habitId: string) => void;
-  expandSignal?: { token: number; action: "expand" | "collapse" };
 }) {
   const completedCount = completedCountProp;
 
@@ -537,24 +551,23 @@ function HabitSection({
     .map((c) => ({ ...c, items: habits.filter((h) => h.category === c.key) }))
     .filter((g) => g.items.length > 0);
 
-  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(
-    () => new Set<string>(["morning", "all_day", "night", "weekend", "month_end", "quarter_end"])
-  );
+  // Expanded by default; user can collapse individual categories.
+  const [collapsedCats, setCollapsedCats] = useState<Set<string>>(() => new Set<string>());
   const toggleCat = (key: string) => setCollapsedCats((prev) => {
     const next = new Set(prev);
     if (next.has(key)) next.delete(key); else next.add(key);
     return next;
   });
 
-  useEffect(() => {
-    if (!expandSignal) return;
-    if (expandSignal.action === "collapse") {
-      setCollapsedCats(new Set<string>(HABIT_CATEGORIES.map((c) => c.key)));
-    } else {
+  const visibleCatKeys = groupedHabits.map((g) => g.key);
+  const allCollapsed = visibleCatKeys.length > 0 && visibleCatKeys.every((k) => collapsedCats.has(k));
+  const handleSectionToggleAll = () => {
+    if (allCollapsed) {
       setCollapsedCats(new Set<string>());
+    } else {
+      setCollapsedCats(new Set<string>(visibleCatKeys));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expandSignal?.token]);
+  };
 
   return (
     <Card shadow="sm" className="h-fit">
@@ -564,6 +577,18 @@ function HabitSection({
           <span className="font-semibold text-sm">Habits</span>
           <Chip size="sm" variant="flat" className="h-5">{completedCount}/{totalVisible}</Chip>
         </div>
+        {visibleCatKeys.length > 0 && (
+          <Button
+            size="sm"
+            isIconOnly
+            variant="light"
+            onPress={handleSectionToggleAll}
+            aria-label={allCollapsed ? "Expand all Habits" : "Collapse all Habits"}
+            title={allCollapsed ? "Expand all" : "Collapse all"}
+          >
+            {allCollapsed ? <ChevronsUpDown size={14} /> : <ChevronsDownUp size={14} />}
+          </Button>
+        )}
       </CardHeader>
 
       {focusHabit && (
@@ -895,16 +920,6 @@ export default function DashboardPage() {
   const [selectedPomoTaskIds, setSelectedPomoTaskIds] = useState<Set<string>>(new Set());
   const [selectedPomoHabitIds, setSelectedPomoHabitIds] = useState<Set<string>>(new Set());
 
-  // Broadcasts an expand/collapse-all event to every TaskSection.
-  const [expandSignal, setExpandSignal] = useState<{ token: number; action: "expand" | "collapse" }>({ token: 0, action: "collapse" });
-  const [allExpanded, setAllExpanded] = useState(false);
-  const handleToggleExpandAll = useCallback(() => {
-    setAllExpanded((prev) => {
-      const next = !prev;
-      setExpandSignal((s) => ({ token: s.token + 1, action: next ? "expand" : "collapse" }));
-      return next;
-    });
-  }, []);
   const togglePomoTask = useCallback((id: string) => {
     setSelectedPomoTaskIds((prev) => {
       const next = new Set(prev);
@@ -1237,16 +1252,6 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="light"
-                isIconOnly
-                onPress={handleToggleExpandAll}
-                aria-label={allExpanded ? "Collapse all" : "Expand all"}
-                title={allExpanded ? "Collapse all" : "Expand all"}
-              >
-                {allExpanded ? <ChevronsDownUp size={16} /> : <ChevronsUpDown size={16} />}
-              </Button>
               <LiveClock fmt={timeFmt} />
             </div>
           </div>
@@ -1662,7 +1667,6 @@ export default function DashboardPage() {
                 selectionMode={pomodoroSelectionMode}
                 selectedTaskIds={selectedPomoTaskIds}
                 onToggleSelect={togglePomoTask}
-                expandSignal={expandSignal}
               />
             ))}
             <HabitSection
@@ -1680,7 +1684,6 @@ export default function DashboardPage() {
               selectionMode={pomodoroSelectionMode}
               selectedHabitIds={selectedPomoHabitIds}
               onToggleSelectHabit={togglePomoHabit}
-              expandSignal={expandSignal}
             />
           </div>
 
