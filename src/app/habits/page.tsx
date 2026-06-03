@@ -38,6 +38,8 @@ import {
   BarChart3,
   Calendar as CalendarIcon,
   Filter,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { Navbar } from "@/components/layout/navbar";
 import { useHabits, useHabitLogs, useHabitMutations } from "@/hooks/use-habits";
@@ -51,7 +53,7 @@ import {
   DEFAULT_QUARTER_END_START,
   DEFAULT_QUARTER_END_END,
 } from "@/lib/habit-visibility";
-import { format, subDays, eachDayOfInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
+import { format, subDays, addDays, isAfter, eachDayOfInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { parseLocalDate } from "@/lib/time";
 import {
   DndContext,
@@ -102,7 +104,7 @@ const WEEKDAY_FULL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 type SortMode = "order" | "streak" | "name" | "category";
 
-function HabitActivityRow({ habit, days }: { habit: Habit; days: number }) {
+function HabitActivityRow({ habit, days, onPickDate }: { habit: Habit; days: number; onPickDate?: (date: string) => void }) {
   const { logs } = useHabitLogs(habit.id, days);
   const today = new Date();
   const dayList = eachDayOfInterval({ start: subDays(today, days - 1), end: today });
@@ -120,12 +122,18 @@ function HabitActivityRow({ habit, days }: { habit: Habit; days: number }) {
         {dayList.map((day) => {
           const dateStr = format(day, "yyyy-MM-dd");
           const done = completedDates.has(dateStr);
-          return (
+          const cell = (
             <div
-              key={dateStr}
-              className={`w-2 h-2 rounded-[2px] ${done ? "bg-success" : "bg-default-100"}`}
-              title={`${dateStr}${done ? " ✓" : ""}`}
+              className={`w-2 h-2 rounded-[2px] ${done ? "bg-success" : "bg-default-100"} ${onPickDate ? "cursor-pointer hover:ring-1 hover:ring-primary" : ""}`}
+              title={`${dateStr}${done ? " ✓" : ""}${onPickDate ? " — click to view/edit" : ""}`}
             />
+          );
+          return onPickDate ? (
+            <button key={dateStr} type="button" aria-label={`View ${dateStr}`} onClick={() => onPickDate(dateStr)}>
+              {cell}
+            </button>
+          ) : (
+            <div key={dateStr}>{cell}</div>
           );
         })}
       </div>
@@ -147,16 +155,16 @@ function HabitActivityRow({ habit, days }: { habit: Habit; days: number }) {
   );
 }
 
-function HabitsActivityCard({ habits, days }: { habits: Habit[]; days: number }) {
+function HabitsActivityCard({ habits, days, onPickDate }: { habits: Habit[]; days: number; onPickDate?: (date: string) => void }) {
   return (
     <Card shadow="sm">
       <CardHeader className="px-4 py-2 flex justify-between">
         <span className="text-xs font-semibold">{days}-Day Activity</span>
-        <span className="text-[10px] text-default-400">Streaks, completions and rate over last {days} days</span>
+        <span className="text-[10px] text-default-400">{onPickDate ? "Click a day to view/edit" : "Streaks, completions and rate"} over last {days} days</span>
       </CardHeader>
       <CardBody className="pt-0 px-4 pb-3 space-y-2">
         {habits.map((habit) => (
-          <HabitActivityRow key={habit.id} habit={habit} days={days} />
+          <HabitActivityRow key={habit.id} habit={habit} days={days} onPickDate={onPickDate} />
         ))}
       </CardBody>
     </Card>
@@ -427,6 +435,7 @@ export default function HabitsPage() {
   const [statsHabit, setStatsHabit] = useState<Habit | null>(null);
 
   const [showOnlyToday, setShowOnlyToday] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date>(() => parseLocalDate(format(new Date(), "yyyy-MM-dd")));
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -439,6 +448,9 @@ export default function HabitsPage() {
 
   const today = useMemo(() => parseLocalDate(format(new Date(), "yyyy-MM-dd")), []);
   const todayDate = format(today, "yyyy-MM-dd");
+  const selectedDateStr = format(selectedDate, "yyyy-MM-dd");
+  const isViewingToday = selectedDateStr === todayDate;
+  const minSelectableDate = subDays(today, 89);
 
   const completedDatesByHabit = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -451,37 +463,57 @@ export default function HabitsPage() {
     return map;
   }, [logs]);
 
-  const isHabitCompletedToday = (habit: Habit): boolean => {
+  const isHabitCompletedOn = (habit: Habit, date: Date): boolean => {
     const dates = completedDatesByHabit.get(habit.id);
     if (!dates || dates.size === 0) return false;
     if (habit.frequency === "weekly") {
-      const start = startOfWeek(today, { weekStartsOn: 0 });
-      const end = endOfWeek(today, { weekStartsOn: 0 });
+      const start = startOfWeek(date, { weekStartsOn: 0 });
+      const end = endOfWeek(date, { weekStartsOn: 0 });
       for (const d of eachDayOfInterval({ start, end })) {
         if (dates.has(format(d, "yyyy-MM-dd"))) return true;
       }
       return false;
     }
     if (habit.frequency === "monthly") {
-      const start = startOfMonth(today);
-      const end = endOfMonth(today);
+      const start = startOfMonth(date);
+      const end = endOfMonth(date);
       for (const d of eachDayOfInterval({ start, end })) {
         if (dates.has(format(d, "yyyy-MM-dd"))) return true;
       }
       return false;
     }
-    return dates.has(todayDate);
+    return dates.has(format(date, "yyyy-MM-dd"));
   };
 
   const filteredHabits = useMemo(() => {
     let list = habits;
-    if (showOnlyToday) list = list.filter((h) => isHabitVisibleOn(h, today, { completedDates: completedDatesByHabit.get(h.id) }));
+    if (showOnlyToday) list = list.filter((h) => isHabitVisibleOn(h, selectedDate, { completedDates: completedDatesByHabit.get(h.id) }));
     return [...list].sort((a, b) => (a.order || 0) - (b.order || 0));
-  }, [habits, showOnlyToday, today, completedDatesByHabit]);
+  }, [habits, showOnlyToday, selectedDate, completedDatesByHabit]);
 
-  const visibleToday = habits.filter((h) => isHabitVisibleOn(h, today, { completedDates: completedDatesByHabit.get(h.id) }));
-  const completedToday = visibleToday.filter((h) => isHabitCompletedToday(h)).length;
+  const visibleOnSelected = habits.filter((h) => isHabitVisibleOn(h, selectedDate, { completedDates: completedDatesByHabit.get(h.id) }));
+  const completedOnSelected = visibleOnSelected.filter((h) => isHabitCompletedOn(h, selectedDate)).length;
   const longestStreak = Math.max(0, ...habits.map((h) => h.longestStreak || 0));
+
+  const goPrevDay = () => {
+    const next = subDays(selectedDate, 1);
+    if (isAfter(minSelectableDate, next)) return;
+    setSelectedDate(next);
+  };
+  const goNextDay = () => {
+    if (isViewingToday) return;
+    const next = addDays(selectedDate, 1);
+    if (isAfter(next, today)) return;
+    setSelectedDate(next);
+  };
+  const goToday = () => setSelectedDate(today);
+  const onDateInputChange = (v: string) => {
+    if (!v) return;
+    const d = parseLocalDate(v);
+    if (isAfter(d, today)) return;
+    if (isAfter(minSelectableDate, d)) return;
+    setSelectedDate(d);
+  };
 
   if (loading || !user) {
     return (
@@ -625,7 +657,7 @@ export default function HabitsPage() {
             <div>
               <h1 className="text-xl sm:text-2xl font-bold">Habits</h1>
               <p className="text-default-500 text-xs">
-                {completedToday}/{visibleToday.length} today · {habits.length} total · Best streak: {longestStreak}
+                {completedOnSelected}/{visibleOnSelected.length} {isViewingToday ? "today" : format(selectedDate, "EEE, MMM d")} · {habits.length} total · Best streak: {longestStreak}
               </p>
             </div>
             <Button color="primary" size="sm" startContent={<Plus size={16} />} onPress={openCreate}>
@@ -633,15 +665,63 @@ export default function HabitsPage() {
             </Button>
           </div>
 
+          {/* Date selector */}
+          <Card shadow="sm">
+            <CardBody className="p-2 flex flex-row items-center gap-2 flex-wrap">
+              <Button
+                isIconOnly
+                size="sm"
+                variant="flat"
+                aria-label="Previous day"
+                onPress={goPrevDay}
+                isDisabled={!isAfter(selectedDate, minSelectableDate)}
+              >
+                <ChevronLeft size={14} />
+              </Button>
+              <div className="flex items-center gap-1.5 px-1">
+                <CalendarIcon size={14} className="text-default-500" />
+                <input
+                  type="date"
+                  aria-label="Select date"
+                  value={selectedDateStr}
+                  min={format(minSelectableDate, "yyyy-MM-dd")}
+                  max={todayDate}
+                  onChange={(e) => onDateInputChange(e.target.value)}
+                  className="bg-transparent text-sm font-medium outline-none border-b border-transparent focus:border-primary"
+                />
+                <span className="text-[11px] text-default-400">
+                  {isViewingToday ? "(today)" : format(selectedDate, "EEEE")}
+                </span>
+              </div>
+              <Button
+                isIconOnly
+                size="sm"
+                variant="flat"
+                aria-label="Next day"
+                onPress={goNextDay}
+                isDisabled={isViewingToday}
+              >
+                <ChevronRight size={14} />
+              </Button>
+              {!isViewingToday && (
+                <Button size="sm" variant="flat" color="primary" onPress={goToday}>
+                  Jump to today
+                </Button>
+              )}
+            </CardBody>
+          </Card>
+
           {/* Today's Progress */}
           <Card shadow="sm">
             <CardBody className="p-3">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-medium">Today&apos;s Progress</span>
-                <span className="text-xs text-default-500">{completedToday}/{visibleToday.length}</span>
+                <span className="text-xs font-medium">
+                  {isViewingToday ? "Today's Progress" : `Progress · ${format(selectedDate, "EEE, MMM d")}`}
+                </span>
+                <span className="text-xs text-default-500">{completedOnSelected}/{visibleOnSelected.length}</span>
               </div>
               <Progress
-                value={visibleToday.length > 0 ? (completedToday / visibleToday.length) * 100 : 0}
+                value={visibleOnSelected.length > 0 ? (completedOnSelected / visibleOnSelected.length) * 100 : 0}
                 color="success"
                 size="md"
               />
@@ -693,7 +773,7 @@ export default function HabitsPage() {
                         >
                           <SortableContext items={group.items.map((h) => h.id)} strategy={verticalListSortingStrategy}>
                             {group.items.map((habit) => {
-                              const log = logs.find((l) => l.habitId === habit.id && l.date === todayDate);
+                              const log = logs.find((l) => l.habitId === habit.id && l.date === selectedDateStr);
                               const isCompleted = log?.completed || false;
                               const currentCount = log?.count || 0;
                               return (
@@ -702,9 +782,9 @@ export default function HabitsPage() {
                                   habit={habit}
                                   isCompleted={isCompleted}
                                   currentCount={currentCount}
-                                  onToggle={() => toggleHabitLog(habit.id, todayDate, !isCompleted)}
-                                  onIncrement={() => updateHabitCount(habit.id, todayDate, currentCount + 1, habit.targetCount || 1)}
-                                  onDecrement={() => updateHabitCount(habit.id, todayDate, Math.max(0, currentCount - 1), habit.targetCount || 1)}
+                                  onToggle={() => toggleHabitLog(habit.id, selectedDateStr, !isCompleted)}
+                                  onIncrement={() => updateHabitCount(habit.id, selectedDateStr, currentCount + 1, habit.targetCount || 1)}
+                                  onDecrement={() => updateHabitCount(habit.id, selectedDateStr, Math.max(0, currentCount - 1), habit.targetCount || 1)}
                                   onDelete={() => deleteHabit(habit.id)}
                                   onEdit={() => openEdit(habit)}
                                   onOpenStats={() => openStats(habit)}
@@ -724,7 +804,7 @@ export default function HabitsPage() {
 
           {/* Heatmaps */}
           {habits.length > 0 && (
-            <HabitsActivityCard habits={habits} days={100} />
+            <HabitsActivityCard habits={habits} days={100} onPickDate={(d) => onDateInputChange(d)} />
           )}
         </motion.div>
 
