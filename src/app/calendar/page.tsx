@@ -8,7 +8,6 @@ import {
   CardBody,
   CardHeader,
   Button,
-  Chip,
 } from "@nextui-org/react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -96,22 +95,11 @@ export default function CalendarPage() {
   const renderTaskRow = (task: Task) => (
     <div
       key={task.id}
-      className="p-2 rounded-lg bg-content2 space-y-1"
+      className="p-2 rounded-lg bg-content2"
     >
       <div className="flex items-center gap-2">
         <div className={`w-2 h-2 rounded-full ${priorityColors[task.priority]}`} />
         <span className="text-sm font-medium">{task.title}</span>
-      </div>
-      <div className="flex gap-1 flex-wrap">
-        <Chip size="sm" variant="flat">
-          {task.status.replace("_", " ")}
-        </Chip>
-        <Chip size="sm" variant="flat" color={
-          task.priority === "high" ? "warning" :
-          task.priority === "medium" ? "primary" : "default"
-        }>
-          {task.priority}
-        </Chip>
       </div>
     </div>
   );
