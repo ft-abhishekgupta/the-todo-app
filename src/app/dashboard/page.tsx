@@ -51,7 +51,7 @@ import { useHabits, useHabitLogs, useHabitMutations } from "@/hooks/use-habits";
 import { usePomodoroSessions, usePomodoroTimer } from "@/hooks/use-pomodoro";
 import { useSchedule } from "@/hooks/use-schedule";
 import { useProjects } from "@/hooks/use-projects";
-import { format, addDays, startOfDay } from "date-fns";
+import { format, addDays, startOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
 import { Timestamp } from "firebase/firestore";
 import { dateFnsTimeFormat, formatTimeStr } from "@/lib/time";
 import { isHabitVisibleOn } from "@/lib/habit-visibility";
@@ -882,7 +882,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const { tasks: todayTasks } = useTodayTasks();
   const { habits } = useHabits();
-  const { logs } = useHabitLogs(undefined, 1);
+  const { logs } = useHabitLogs(undefined, 35);
   const { sessions } = usePomodoroSessions();
   const { projects } = useProjects();
   const todayDate = format(new Date(), "yyyy-MM-dd");
@@ -965,14 +965,52 @@ export default function DashboardPage() {
   );
 
   const today = useMemo(() => new Date(), []);
-  const visibleHabits = useMemo(() => habits.filter((h) => isHabitVisibleOn(h, today)), [habits, today]);
+  const completedDatesByHabit = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const l of logs) {
+      if (!l.completed) continue;
+      let s = map.get(l.habitId);
+      if (!s) { s = new Set<string>(); map.set(l.habitId, s); }
+      s.add(l.date);
+    }
+    return map;
+  }, [logs]);
+
+  const isHabitCompletedToday = (habit: Habit): boolean => {
+    const dates = completedDatesByHabit.get(habit.id);
+    if (!dates || dates.size === 0) return false;
+    if (habit.frequency === "weekly") {
+      const start = startOfWeek(today, { weekStartsOn: 0 });
+      const end = endOfWeek(today, { weekStartsOn: 0 });
+      for (const d of eachDayOfInterval({ start, end })) {
+        if (dates.has(format(d, "yyyy-MM-dd"))) return true;
+      }
+      return false;
+    }
+    if (habit.frequency === "monthly") {
+      const start = startOfMonth(today);
+      const end = endOfMonth(today);
+      for (const d of eachDayOfInterval({ start, end })) {
+        if (dates.has(format(d, "yyyy-MM-dd"))) return true;
+      }
+      return false;
+    }
+    return dates.has(todayDate);
+  };
+
+  const visibleHabits = useMemo(
+    () => habits.filter((h) => isHabitVisibleOn(h, today, { completedDates: completedDatesByHabit.get(h.id) })),
+    [habits, today, completedDatesByHabit]
+  );
   const incompleteVisibleHabits = useMemo(
-    () => visibleHabits.filter((h) => !logs.some((l) => l.habitId === h.id && l.date === todayDate && l.completed)),
-    [visibleHabits, logs, todayDate]
+    () => visibleHabits.filter((h) => !isHabitCompletedToday(h)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleHabits, completedDatesByHabit, todayDate]
   );
   const completedVisibleHabits = useMemo(
-    () => visibleHabits.filter((h) => logs.some((l) => l.habitId === h.id && l.date === todayDate && l.completed)),
-    [visibleHabits, logs, todayDate]
+    () => visibleHabits.filter((h) => isHabitCompletedToday(h)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [visibleHabits, completedDatesByHabit, todayDate]
   );
 
   useEffect(() => {
@@ -1000,7 +1038,7 @@ export default function DashboardPage() {
 
   const activeTasks = todayTasks.filter((t) => t.status !== "completed");
   const completedTasks = todayTasks.filter((t) => t.status === "completed");
-  const completedHabits = logs.filter((l) => l.date === todayDate && l.completed && visibleHabits.some((h) => h.id === l.habitId)).length;
+  const completedHabits = completedVisibleHabits.length;
   const completedPomodoros = sessions.filter((s) => s.isCompleted).length;
 
   const handleToggleTask = (id: string, completed: boolean) => {

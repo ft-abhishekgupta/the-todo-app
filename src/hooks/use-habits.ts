@@ -17,7 +17,7 @@ import { Habit, HabitLog, HabitCategory } from "@/types";
 import { useAuth } from "@/providers/auth-provider";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
-import { format, subDays, startOfDay } from "date-fns";
+import { format, subDays, startOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, eachDayOfInterval } from "date-fns";
 import { parseLocalDate } from "@/lib/time";
 import { isHabitVisibleOn } from "@/lib/habit-visibility";
 
@@ -239,27 +239,54 @@ export function useHabitMutations() {
     const snapshot = await getDocs(q);
     const completedDates = new Set(snapshot.docs.map((d) => d.data().date as string));
 
-    // Walk backwards from today, only counting days the habit is visible on.
-    // A non-visible day is skipped (doesn't break or extend the streak).
     let streak = 0;
-    let cursor = parseLocalDate(format(new Date(), "yyyy-MM-dd"));
-    const MAX_LOOKBACK = 366;
-    for (let i = 0; i < MAX_LOOKBACK; i++) {
-      const visible = isHabitVisibleOn(currentHabit, cursor);
-      if (visible) {
-        const key = format(cursor, "yyyy-MM-dd");
-        if (completedDates.has(key)) {
+    const todayStart = parseLocalDate(format(new Date(), "yyyy-MM-dd"));
+
+    if (currentHabit.frequency === "weekly" || currentHabit.frequency === "monthly") {
+      // Count completed weeks/months walking backwards from current period.
+      const isWeekly = currentHabit.frequency === "weekly";
+      const MAX_PERIODS = isWeekly ? 260 : 60; // ~5y of weeks or months
+      const periodStart = (d: Date) => (isWeekly ? startOfWeek(d, { weekStartsOn: 0 }) : startOfMonth(d));
+      const periodEnd = (d: Date) => (isWeekly ? endOfWeek(d, { weekStartsOn: 0 }) : endOfMonth(d));
+      const prevPeriod = (d: Date) => (isWeekly ? subDays(periodStart(d), 1) : subMonths(d, 1));
+
+      let cursor = todayStart;
+      for (let i = 0; i < MAX_PERIODS; i++) {
+        const start = periodStart(cursor);
+        const end = periodEnd(cursor);
+        let completedInPeriod = false;
+        for (const d of eachDayOfInterval({ start, end })) {
+          if (completedDates.has(format(d, "yyyy-MM-dd"))) { completedInPeriod = true; break; }
+        }
+        if (completedInPeriod) {
           streak++;
-        } else {
-          // Allow today to be incomplete without breaking streak (encourages completion later in day)
-          if (i === 0) {
-            // skip
+        } else if (i > 0) {
+          break; // current period may still be in progress
+        }
+        cursor = prevPeriod(cursor);
+      }
+    } else {
+      // Walk backwards from today, only counting days the habit is visible on.
+      // A non-visible day is skipped (doesn't break or extend the streak).
+      let cursor = todayStart;
+      const MAX_LOOKBACK = 366;
+      for (let i = 0; i < MAX_LOOKBACK; i++) {
+        const visible = isHabitVisibleOn(currentHabit, cursor);
+        if (visible) {
+          const key = format(cursor, "yyyy-MM-dd");
+          if (completedDates.has(key)) {
+            streak++;
           } else {
-            break;
+            // Allow today to be incomplete without breaking streak (encourages completion later in day)
+            if (i === 0) {
+              // skip
+            } else {
+              break;
+            }
           }
         }
+        cursor = subDays(cursor, 1);
       }
-      cursor = subDays(cursor, 1);
     }
 
     const longestStreak = Math.max(streak, currentHabit.longestStreak || 0);

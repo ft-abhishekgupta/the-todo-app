@@ -51,7 +51,7 @@ import {
   DEFAULT_QUARTER_END_START,
   DEFAULT_QUARTER_END_END,
 } from "@/lib/habit-visibility";
-import { format, subDays, eachDayOfInterval, startOfWeek, endOfWeek } from "date-fns";
+import { format, subDays, eachDayOfInterval, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from "date-fns";
 import { parseLocalDate } from "@/lib/time";
 import {
   DndContext,
@@ -440,16 +440,47 @@ export default function HabitsPage() {
   const today = useMemo(() => parseLocalDate(format(new Date(), "yyyy-MM-dd")), []);
   const todayDate = format(today, "yyyy-MM-dd");
 
+  const completedDatesByHabit = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const l of logs) {
+      if (!l.completed) continue;
+      let s = map.get(l.habitId);
+      if (!s) { s = new Set<string>(); map.set(l.habitId, s); }
+      s.add(l.date);
+    }
+    return map;
+  }, [logs]);
+
+  const isHabitCompletedToday = (habit: Habit): boolean => {
+    const dates = completedDatesByHabit.get(habit.id);
+    if (!dates || dates.size === 0) return false;
+    if (habit.frequency === "weekly") {
+      const start = startOfWeek(today, { weekStartsOn: 0 });
+      const end = endOfWeek(today, { weekStartsOn: 0 });
+      for (const d of eachDayOfInterval({ start, end })) {
+        if (dates.has(format(d, "yyyy-MM-dd"))) return true;
+      }
+      return false;
+    }
+    if (habit.frequency === "monthly") {
+      const start = startOfMonth(today);
+      const end = endOfMonth(today);
+      for (const d of eachDayOfInterval({ start, end })) {
+        if (dates.has(format(d, "yyyy-MM-dd"))) return true;
+      }
+      return false;
+    }
+    return dates.has(todayDate);
+  };
+
   const filteredHabits = useMemo(() => {
     let list = habits;
-    if (showOnlyToday) list = list.filter((h) => isHabitVisibleOn(h, today));
+    if (showOnlyToday) list = list.filter((h) => isHabitVisibleOn(h, today, { completedDates: completedDatesByHabit.get(h.id) }));
     return [...list].sort((a, b) => (a.order || 0) - (b.order || 0));
-  }, [habits, showOnlyToday, today]);
+  }, [habits, showOnlyToday, today, completedDatesByHabit]);
 
-  const visibleToday = habits.filter((h) => isHabitVisibleOn(h, today));
-  const completedToday = visibleToday.filter((h) =>
-    logs.some((l) => l.habitId === h.id && l.date === todayDate && l.completed)
-  ).length;
+  const visibleToday = habits.filter((h) => isHabitVisibleOn(h, today, { completedDates: completedDatesByHabit.get(h.id) }));
+  const completedToday = visibleToday.filter((h) => isHabitCompletedToday(h)).length;
   const longestStreak = Math.max(0, ...habits.map((h) => h.longestStreak || 0));
 
   if (loading || !user) {

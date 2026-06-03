@@ -1,4 +1,5 @@
 import { Habit } from "@/types";
+import { endOfMonth as endOfMonthFn, endOfWeek as endOfWeekFn, format as formatFn, startOfMonth as startOfMonthFn, startOfWeek as startOfWeekFn, eachDayOfInterval } from "date-fns";
 
 // Defaults
 export const DEFAULT_WEEKEND_DAYS = [5, 6, 0, 1]; // Fri, Sat, Sun, Mon
@@ -18,25 +19,51 @@ function clampDay(year: number, monthIdx: number, day: number) {
   return Math.min(Math.max(1, day), last);
 }
 
+function completedInRange(completedDates: ReadonlySet<string> | undefined, start: Date, end: Date): boolean {
+  if (!completedDates || completedDates.size === 0) return false;
+  for (const d of eachDayOfInterval({ start, end })) {
+    if (completedDates.has(formatFn(d, "yyyy-MM-dd"))) return true;
+  }
+  return false;
+}
+
 /**
  * Returns true if the habit should appear on the given local date.
  *
  * Rules (in order):
+ *  - Paused habits are never visible.
  *  - frequency=custom → today's weekday must be in customDays (replaces category window).
+ *  - frequency=weekly → visible every day of the current week until completed once that week.
+ *  - frequency=monthly → visible every day of the current month until completed once that month.
  *  - category=weekend → today's weekday in weekendDays (default Fri-Mon).
  *  - category=month_end → date in [startDay..endOfMonth] of current month
  *      OR [1..endDay] of next month.
  *  - category=quarter_end → similar window across quarter boundary.
  *  - Otherwise: visible every day.
- *  - Paused habits are never visible.
  */
-export function isHabitVisibleOn(habit: Habit, date: Date): boolean {
+export function isHabitVisibleOn(
+  habit: Habit,
+  date: Date,
+  opts?: { completedDates?: ReadonlySet<string> }
+): boolean {
   if (habit.isPaused) return false;
 
   if (habit.frequency === "custom") {
     const days = habit.customDays && habit.customDays.length > 0 ? habit.customDays : [];
     if (days.length === 0) return true; // misconfigured → fallback visible
     return days.includes(date.getDay());
+  }
+
+  if (habit.frequency === "weekly") {
+    const start = startOfWeekFn(date, { weekStartsOn: 0 });
+    const end = endOfWeekFn(date, { weekStartsOn: 0 });
+    return !completedInRange(opts?.completedDates, start, end);
+  }
+
+  if (habit.frequency === "monthly") {
+    const start = startOfMonthFn(date);
+    const end = endOfMonthFn(date);
+    return !completedInRange(opts?.completedDates, start, end);
   }
 
   switch (habit.category) {
@@ -102,6 +129,8 @@ export function describeHabitSchedule(habit: Pick<
       : "any day";
     return `Only on ${days}`;
   }
+  if (habit.frequency === "weekly") return "Once per week";
+  if (habit.frequency === "monthly") return "Once per month";
   switch (habit.category) {
     case "weekend": {
       const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
