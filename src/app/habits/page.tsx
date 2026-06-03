@@ -434,7 +434,7 @@ export default function HabitsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [statsHabit, setStatsHabit] = useState<Habit | null>(null);
 
-  const [showOnlyToday, setShowOnlyToday] = useState(false);
+  const [showOnlyToday, setShowOnlyToday] = useState(true);
   const [selectedDate, setSelectedDate] = useState<Date>(() => parseLocalDate(format(new Date(), "yyyy-MM-dd")));
 
   const sensors = useSensors(
